@@ -24,8 +24,11 @@ const navLinks = [
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [lang, setLang] = useState<'EN' | 'ES'>('EN');
   const pathname = usePathname();
   const isHome = pathname === '/';
+
+  const toggleLang = () => setLang(prev => prev === 'EN' ? 'ES' : 'EN');
 
   useEffect(() => {
     const handleScroll = () => {
@@ -52,7 +55,7 @@ export default function Navbar() {
               href={link.href}
               className="text-slate-700 hover:text-[var(--brand-blue)] font-medium transition-colors relative group"
             >
-              {link.name}
+              {lang === 'EN' ? link.name : link.name === 'Services' ? 'Servicios' : link.name}
               <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[var(--brand-orange)] transition-all group-hover:w-full"></span>
             </Link>
           ))}
@@ -60,9 +63,12 @@ export default function Navbar() {
 
         {/* Action Buttons */}
         <div className="hidden lg:flex items-center gap-4">
-          <button className="flex items-center gap-2 text-slate-700 hover:text-[var(--brand-blue)] font-medium px-3">
-            <Globe className="w-4 h-4" />
-            <span>ES</span>
+          <button 
+            onClick={toggleLang}
+            className="flex items-center gap-2 text-slate-700 hover:text-[var(--brand-blue)] font-black px-3 transition-colors active:scale-95"
+          >
+            <Globe className="w-4 h-4 text-[var(--brand-orange)]" />
+            <span className="text-xs uppercase tracking-widest">{lang}</span>
           </button>
           <Link href="/login" className="text-slate-700 hover:text-[var(--brand-blue)] font-bold transition-colors">
             Login

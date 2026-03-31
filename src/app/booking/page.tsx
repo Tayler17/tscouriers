@@ -151,12 +151,38 @@ export default function BookingPage() {
            <div className="lg:col-span-8 space-y-8">
               <AnimatePresence mode="wait">
                  
-                 {/* STEP 1: ITEM PICKER */}
+                 {/* STEP 1: ADDRESSES & CONTACTS (Now First) */}
                  {step === 1 && (
-                   <motion.div key="s1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
+                   <motion.div key="s1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-8">
+                      <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-10 space-y-12">
+                         <section>
+                            <h3 className="text-2xl font-black text-[var(--brand-blue)] mb-8 flex items-center gap-3 italic uppercase tracking-tighter"><User className="w-7 h-7 text-[var(--brand-orange)]" /> Customer <span className="text-[var(--brand-orange)]">Details</span></h3>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                               <input type="text" placeholder="Full name" value={formData.customer.name} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, name: e.target.value } }))} className="input-booking" />
+                               <input type="email" placeholder="example@mail.com" value={formData.customer.email} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, email: e.target.value } }))} className="input-booking" />
+                               <input type="text" placeholder="Phone number" value={formData.customer.phone} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, phone: e.target.value } }))} className="input-booking" />
+                            </div>
+                         </section>
+                         <section>
+                            <div className="flex items-center justify-between mb-8"><h3 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3 italic uppercase tracking-tighter"><MapPin className="w-6 h-6 text-[var(--brand-orange)]" /> Collection <span className="text-[var(--brand-orange)]">Address</span></h3><label className="flex items-center gap-2 cursor-pointer group"><input type="checkbox" className="hidden" checked={formData.collection.isSameAsCustomer} onChange={() => handleSameAsCustomer('collection')} /><div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${formData.collection.isSameAsCustomer ? 'bg-[var(--brand-orange)] border-[var(--brand-orange)]' : 'border-slate-200'}`}>{formData.collection.isSameAsCustomer && <CheckCircle2 className="w-4 h-4 text-white" />}</div><span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Same as Customer</span></label></div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"><input type="text" placeholder="Name" value={formData.collection.name} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, name: e.target.value } }))} className="input-booking" /><input type="email" placeholder="Email" value={formData.collection.email} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, email: e.target.value } }))} className="input-booking" /><input type="text" placeholder="Phone" value={formData.collection.phone} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, phone: e.target.value } }))} className="input-booking" /></div>
+                            <input type="text" placeholder="House/Street, Postcode, City..." value={formData.collection.address} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, address: e.target.value } }))} className="input-booking w-full" />
+                         </section>
+                         <section>
+                            <div className="flex items-center justify-between mb-8"><h3 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3 italic uppercase tracking-tighter"><MapPin className="w-6 h-6 text-[var(--brand-blue)]" /> Delivery <span className="text-[var(--brand-blue)]">Address</span></h3><label className="flex items-center gap-2 cursor-pointer group"><input type="checkbox" className="hidden" checked={formData.delivery.isSameAsCustomer} onChange={() => handleSameAsCustomer('delivery')} /><div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${formData.delivery.isSameAsCustomer ? 'bg-[var(--brand-blue)] border-[var(--brand-blue)]' : 'border-slate-200'}`}>{formData.delivery.isSameAsCustomer && <CheckCircle2 className="w-4 h-4 text-white" />}</div><span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Same as Customer</span></label></div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"><input type="text" placeholder="Name" value={formData.delivery.name} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, name: e.target.value } }))} className="input-booking" /><input type="email" placeholder="Email" value={formData.delivery.email} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, email: e.target.value } }))} className="input-booking" /><input type="text" placeholder="Phone" value={formData.delivery.phone} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, phone: e.target.value } }))} className="input-booking" /></div>
+                            <input type="text" placeholder="House/Street, Postcode, City..." value={formData.delivery.address} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, address: e.target.value } }))} className="input-booking w-full" />
+                         </section>
+                      </div>
+                   </motion.div>
+                 )}
+
+                 {/* STEP 2: ITEM PICKER (Now Second) */}
+                 {step === 2 && (
+                   <motion.div key="s2" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
                       <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row h-[700px]">
                          <div className="w-full md:w-64 bg-slate-50 border-r border-slate-100 p-6 space-y-2 overflow-y-auto">
-                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">Categories</h3>
+                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6 italic">Select Categories</h3>
                             {CATEGORIES.map(cat => (
                               <button 
                                 key={cat.id} 
@@ -171,7 +197,7 @@ export default function BookingPage() {
                          <div className="flex-grow flex flex-col p-8">
                             <div className="relative mb-8">
                                <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
-                               <input type="text" placeholder="Search items to add..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-16 pr-8 py-5 rounded-2xl bg-slate-50 border border-slate-100 focus:bg-white focus:ring-4 focus:ring-blue-500/5 outline-none transition-all font-bold" />
+                               <input type="text" placeholder="What are you shipping? (e.g. Barrel, Sofa...)" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-16 pr-8 py-5 rounded-2xl bg-slate-50 border border-slate-100 focus:bg-white focus:ring-4 focus:ring-blue-500/5 outline-none transition-all font-bold" />
                             </div>
                             <div className="flex-grow overflow-y-auto space-y-3 pr-2 custom-scrollbar">
                                {filteredItems.map(item => (
@@ -180,9 +206,9 @@ export default function BookingPage() {
                                        <div className="w-12 h-12 bg-slate-50 group-hover:bg-blue-50 rounded-2xl flex items-center justify-center transition-colors">
                                           <Package className="w-6 h-6 text-slate-300 group-hover:text-[var(--brand-blue)]" />
                                        </div>
-                                       <span className="font-bold text-slate-700">{item.name}</span>
+                                       <span className="font-bold text-slate-700 italic">{item.name}</span>
                                     </div>
-                                    <button onClick={() => addItem(item)} className="bg-[var(--brand-orange)] text-white px-6 py-2 rounded-xl text-xs font-black uppercase shadow-lg shadow-orange-500/20 active:scale-95 transition-all">Add</button>
+                                    <button onClick={() => addItem(item)} className="bg-[var(--brand-orange)] text-white px-6 py-2 rounded-xl text-xs font-black uppercase shadow-lg shadow-orange-500/20 active:scale-95 transition-all">Add Item</button>
                                  </div>
                                ))}
                             </div>
@@ -191,36 +217,10 @@ export default function BookingPage() {
                    </motion.div>
                  )}
 
-                 {/* STEP 2: ADDRESSES & CONTACTS */}
-                 {step === 2 && (
-                   <motion.div key="s2" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-8">
-                      <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-10 space-y-12">
-                         <section>
-                            <h3 className="text-xl font-black text-[var(--brand-blue)] mb-8 flex items-center gap-3"><User className="w-6 h-6 text-[var(--brand-orange)]" /> Customer Details</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                               <input type="text" placeholder="Full name" value={formData.customer.name} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, name: e.target.value } }))} className="input-booking" />
-                               <input type="email" placeholder="example@mail.com" value={formData.customer.email} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, email: e.target.value } }))} className="input-booking" />
-                               <input type="text" placeholder="Phone number" value={formData.customer.phone} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, phone: e.target.value } }))} className="input-booking" />
-                            </div>
-                         </section>
-                         <section>
-                            <div className="flex items-center justify-between mb-8"><h3 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3"><MapPin className="w-6 h-6 text-[var(--brand-orange)]" /> Collection Details</h3><label className="flex items-center gap-2 cursor-pointer group"><input type="checkbox" className="hidden" checked={formData.collection.isSameAsCustomer} onChange={() => handleSameAsCustomer('collection')} /><div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${formData.collection.isSameAsCustomer ? 'bg-[var(--brand-orange)] border-[var(--brand-orange)]' : 'border-slate-200'}`}>{formData.collection.isSameAsCustomer && <CheckCircle2 className="w-4 h-4 text-white" />}</div><span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Same as Customer</span></label></div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"><input type="text" placeholder="Name" value={formData.collection.name} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, name: e.target.value } }))} className="input-booking" /><input type="email" placeholder="Email" value={formData.collection.email} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, email: e.target.value } }))} className="input-booking" /><input type="text" placeholder="Phone" value={formData.collection.phone} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, phone: e.target.value } }))} className="input-booking" /></div>
-                            <input type="text" placeholder="Address..." value={formData.collection.address} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, address: e.target.value } }))} className="input-booking w-full" />
-                         </section>
-                         <section>
-                            <div className="flex items-center justify-between mb-8"><h3 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3"><MapPin className="w-6 h-6 text-[var(--brand-blue)]" /> Delivery Details</h3><label className="flex items-center gap-2 cursor-pointer group"><input type="checkbox" className="hidden" checked={formData.delivery.isSameAsCustomer} onChange={() => handleSameAsCustomer('delivery')} /><div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${formData.delivery.isSameAsCustomer ? 'bg-[var(--brand-blue)] border-[var(--brand-blue)]' : 'border-slate-200'}`}>{formData.delivery.isSameAsCustomer && <CheckCircle2 className="w-4 h-4 text-white" />}</div><span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Same as Customer</span></label></div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"><input type="text" placeholder="Name" value={formData.delivery.name} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, name: e.target.value } }))} className="input-booking" /><input type="email" placeholder="Email" value={formData.delivery.email} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, email: e.target.value } }))} className="input-booking" /><input type="text" placeholder="Phone" value={formData.delivery.phone} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, phone: e.target.value } }))} className="input-booking" /></div>
-                            <input type="text" placeholder="Address..." value={formData.delivery.address} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, address: e.target.value } }))} className="input-booking w-full" />
-                         </section>
-                      </div>
-                   </motion.div>
-                 )}
-
-                 {/* STEP 3: LOGISTICS */}
+                 {/* STEP 3: LOGISTICS (NO CHANGE IN LOGIC, JUST STEP NUMBER) */}
                  {step === 3 && (
                    <motion.div key="s3" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-8">
-                      <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-12"><div className="grid grid-cols-1 md:grid-cols-2 gap-12"><div className="space-y-8"><h4 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3"><Truck className="w-5 h-5 text-[var(--brand-orange)]" /> Collection Setup</h4><div className="bg-slate-50 p-8 rounded-3xl space-y-6"><div className="space-y-4"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Parking?</p><div className="flex flex-wrap gap-2">{['NO', 'SPACE OUTSIDE', 'ON STREET', 'NEARBY'].map(opt => (<button key={opt} onClick={() => setFormData(p => ({ ...p, collection: { ...p.collection, parking: opt } }))} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${formData.collection.parking === opt ? 'bg-[var(--brand-blue)] text-white' : 'bg-white text-slate-400 border border-slate-100'}`}>{opt}</button>))}</div></div></div></div><div className="space-y-8"><h4 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3"><Package className="w-5 h-5 text-[var(--brand-blue)]" /> Delivery Setup</h4><div className="bg-slate-50 p-8 rounded-3xl space-y-6"><div className="space-y-4"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Parking?</p><div className="flex flex-wrap gap-2">{['NO', 'SPACE OUTSIDE', 'ON STREET', 'NEARBY'].map(opt => (<button key={opt} onClick={() => setFormData(p => ({ ...p, delivery: { ...p.delivery, parking: opt } }))} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${formData.delivery.parking === opt ? 'bg-[var(--brand-blue)] text-white' : 'bg-white text-slate-400 border border-slate-100'}`}>{opt}</button>))}</div></div></div></div></div></div>
+                      <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-12"><div className="grid grid-cols-1 md:grid-cols-2 gap-12"><div className="space-y-8"><h4 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3 italic uppercase tracking-tighter"><Truck className="w-5 h-5 text-[var(--brand-orange)]" /> Support at Origin</h4><div className="bg-slate-50 p-8 rounded-3xl space-y-6"><div className="space-y-4"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">Parking availability?</p><div className="flex flex-wrap gap-2">{['NO', 'OUTSIDE', 'STREET', 'NEARBY'].map(opt => (<button key={opt} onClick={() => setFormData(p => ({ ...p, collection: { ...p.collection, parking: opt } }))} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${formData.collection.parking === opt ? 'bg-[var(--brand-blue)] text-white' : 'bg-white text-slate-400 border border-slate-100'}`}>{opt}</button>))}</div></div></div></div><div className="space-y-8"><h4 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3 italic uppercase tracking-tighter"><Package className="w-5 h-5 text-[var(--brand-blue)]" /> Support at Dest.</h4><div className="bg-slate-50 p-8 rounded-3xl space-y-6"><div className="space-y-4"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">Parking availability?</p><div className="flex flex-wrap gap-2">{['NO', 'OUTSIDE', 'STREET', 'NEARBY'].map(opt => (<button key={opt} onClick={() => setFormData(p => ({ ...p, delivery: { ...p.delivery, parking: opt } }))} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${formData.delivery.parking === opt ? 'bg-[var(--brand-blue)] text-white' : 'bg-white text-slate-400 border border-slate-100'}`}>{opt}</button>))}</div></div></div></div></div></div>
                    </motion.div>
                  )}
 
@@ -228,8 +228,8 @@ export default function BookingPage() {
                  {step === 4 && (
                    <motion.div key="s4" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-12">
                       <div className="text-center space-y-4">
-                         <h3 className="text-4xl font-black text-[var(--brand-blue)] italic uppercase tracking-tighter">Select Your <span className="text-[var(--brand-orange)]">Delivery Option</span></h3>
-                         <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">Premium tailored logistics for your global shipments.</p>
+                         <h3 className="text-4xl font-black text-[var(--brand-blue)] italic uppercase tracking-tighter">Your <span className="text-[var(--brand-orange)]">Delivery Quote</span></h3>
+                         <p className="text-slate-400 text-sm font-bold uppercase tracking-widest italic">Premium logistics tailored for the Dominican community/business.</p>
                       </div>
 
                       {/* Plan Selection Cards */}
@@ -249,13 +249,13 @@ export default function BookingPage() {
                                     </div>
                                  </div>
                                  <div className="space-y-1">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Calculated Price</p>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Total Estimate</p>
                                     <h5 className="text-5xl font-black text-[var(--brand-blue)] tracking-tight">£{total.toFixed(2)}</h5>
                                  </div>
                                  
                                  {formData.planId === plan.id && (
                                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 flex items-center gap-2 text-[10px] font-black text-emerald-500 uppercase tracking-widest">
-                                      <CheckCircle2 className="w-4 h-4" /> Selected Plan
+                                      <CheckCircle2 className="w-4 h-4" /> Recommended Option
                                    </motion.div>
                                  )}
                               </div>
@@ -269,7 +269,7 @@ export default function BookingPage() {
                             <table className="w-full text-left">
                                <thead className="bg-slate-50">
                                   <tr>
-                                     <th className="px-8 py-6 text-xs font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 italic">Features Comparison</th>
+                                     <th className="px-8 py-6 text-xs font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 italic">Global Logistics Comparison</th>
                                      {SERVICE_PLANS.map(plan => (
                                        <th key={plan.id} className={`px-8 py-6 text-center text-sm font-black italic uppercase tracking-tighter border-b ${formData.planId === plan.id ? 'text-[var(--brand-orange)] border-[var(--brand-orange)]/20' : 'text-slate-800 border-slate-100'}`}>
                                           {plan.name}
@@ -280,7 +280,7 @@ export default function BookingPage() {
                                <tbody className="divide-y divide-slate-50 italic">
                                   {SERVICE_FEATURES.map((feature, idx) => (
                                     <tr key={idx} className="group hover:bg-slate-50/50 transition-colors">
-                                       <td className="px-8 py-5 text-sm font-bold text-slate-600 uppercase tracking-tight">{feature}</td>
+                                       <td className="px-8 py-5 text-sm font-bold text-slate-600 uppercase tracking-tight italic">{feature}</td>
                                        {SERVICE_PLANS.map(plan => {
                                           const detail = plan.details[feature as keyof typeof plan.details];
                                           const isBool = typeof detail === 'boolean';
@@ -300,7 +300,7 @@ export default function BookingPage() {
                             </table>
                          </div>
                          <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] italic">All plans include basic insurance and door-to-door tracking as standard.</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] italic">Full insurance included in all sea shipments to the DR.</p>
                          </div>
                       </div>
                    </motion.div>
@@ -310,9 +310,9 @@ export default function BookingPage() {
                  {step === 5 && (
                     <motion.div key="s5" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="bg-white rounded-[2.5rem] p-12 text-center shadow-xl border border-slate-100">
                        <div className="w-24 h-24 bg-blue-100 text-[var(--brand-blue)] rounded-full flex items-center justify-center mx-auto mb-8 shadow-lg shadow-blue-500/10"><ShieldCheck className="w-12 h-12" /></div>
-                       <h2 className="text-4xl font-extrabold text-[var(--brand-blue)] mb-4 uppercase italic">Final <span className="text-[var(--brand-orange)]">Review</span></h2>
-                       <p className="text-slate-500 max-w-md mx-auto mb-12 font-bold uppercase text-xs tracking-widest leading-relaxed">Review your summary and take the last step: <span className="text-slate-900 font-black">Secure Payment</span>.</p>
-                       <button onClick={nextStep} className="btn-primary w-full max-w-sm py-6 text-xl shadow-2xl flex items-center justify-center gap-3">Go to Payment <CreditCard className="w-6 h-6" /></button>
+                       <h2 className="text-4xl font-extrabold text-[var(--brand-blue)] mb-4 uppercase italic tracking-tighter">Secure <span className="text-[var(--brand-orange)]">Summary</span></h2>
+                       <p className="text-slate-500 max-w-md mx-auto mb-12 font-bold uppercase text-xs tracking-widest leading-relaxed italic">Double check your addresses and items. We are ready to dispatch.</p>
+                       <button onClick={nextStep} className="btn-primary w-full max-w-sm py-6 text-xl shadow-2xl flex items-center justify-center gap-3">Proceed to Checkout <CreditCard className="w-6 h-6" /></button>
                     </motion.div>
                  )}
 
@@ -328,23 +328,42 @@ export default function BookingPage() {
               {/* Controls */}
               {step < 5 && (
                  <div className="flex justify-between items-center px-4 mt-12">
-                    <button onClick={prevStep} disabled={step === 1} className={`flex items-center gap-2 text-sm font-black uppercase tracking-widest transition-all ${step === 1 ? 'opacity-0 invisible' : 'text-slate-400 hover:text-[var(--brand-blue)]'}`}><ArrowLeft className="w-4 h-4" /> Previous</button>
-                    <button onClick={nextStep} className="btn-primary px-16 py-4 rounded-2xl flex items-center gap-3 shadow-xl">Continue <ArrowRight className="w-5 h-5" /></button>
+                    <button onClick={prevStep} disabled={step === 1} className={`flex items-center gap-2 text-sm font-black uppercase tracking-widest transition-all ${step === 1 ? 'opacity-0 invisible' : 'text-slate-400 hover:text-[var(--brand-blue)]'}`}><ArrowLeft className="w-4 h-4" /> Previous Step</button>
+                    <button onClick={nextStep} className="btn-primary px-16 py-4 rounded-2xl flex items-center gap-3 shadow-xl">Next Phase <ArrowRight className="w-5 h-5" /></button>
                  </div>
               )}
            </div>
 
-           {/* Sidebar: Summary & Extras */}
+           {/* Sidebar: Summary & Extras (Persistent during address input too) */}
            <div className="lg:col-span-4 space-y-8 sticky top-24">
               <div className="bg-[var(--brand-blue)] rounded-[2.5rem] p-10 text-white shadow-2xl shadow-blue-900/40 relative overflow-hidden">
                  <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 -translate-y-12 translate-x-12 rounded-full" />
                  <div className="relative z-10 flex flex-col h-full">
-                    <div className="flex justify-between items-center mb-10 border-b border-white/10 pb-6"><h3 className="text-xl font-black uppercase tracking-tight">Order <span className="text-[var(--brand-orange)]">Summary</span></h3><ShoppingCart className="w-6 h-6 text-white/30" /></div>
-                    <div className="flex-grow space-y-6 mb-10">{formData.items.length === 0 ? (<div className="text-center py-10 text-white/30 italic text-sm">No items added</div>) : (formData.items.map(item => (<div key={item.id} className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5 group hover:bg-white/10 transition-colors"><div><p className="font-bold text-sm text-blue-50">{item.name}</p><p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Qty: {item.quantity}</p></div><div className="flex items-center gap-4"><span className="font-black text-blue-100">£{(item.price * item.quantity).toFixed(2)}</span><button onClick={() => removeItem(item.id)} className="text-white/20 hover:text-red-400"><Trash2 className="w-4 h-4" /></button></div></div>)))}</div>
+                    <div className="flex justify-between items-center mb-10 border-b border-white/10 pb-6 italic"><h3 className="text-xl font-black uppercase tracking-tighter leading-none">Booking <br /><span className="text-[var(--brand-orange)]">Snapshot</span></h3><ShoppingCart className="w-6 h-6 text-white/30" /></div>
+                    
+                    {/* Condensed Address View */}
+                    {(formData.collection.address || formData.delivery.address) && (
+                      <div className="mb-8 space-y-3 bg-white/5 p-4 rounded-2xl border border-white/5">
+                        {formData.collection.address && (
+                          <div className="flex items-start gap-3">
+                            <MapPin className="w-3 h-3 text-[var(--brand-orange)] mt-1" />
+                            <p className="text-[9px] font-bold text-blue-100/70 truncate uppercase">From: {formData.collection.address}</p>
+                          </div>
+                        )}
+                        {formData.delivery.address && (
+                          <div className="flex items-start gap-3">
+                            <MapPin className="w-3 h-3 text-blue-400 mt-1" />
+                            <p className="text-[9px] font-bold text-blue-100/70 truncate uppercase">To: {formData.delivery.address}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="flex-grow space-y-6 mb-10">{formData.items.length === 0 ? (<div className="text-center py-10 text-white/30 italic text-sm">Waiting for items...</div>) : (formData.items.map(item => (<div key={item.id} className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5 group hover:bg-white/10 transition-colors"><div><p className="font-bold text-sm text-blue-50">{item.name}</p><p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Qty: {item.quantity}</p></div><div className="flex items-center gap-4"><span className="font-black text-blue-100">£{(item.price * item.quantity).toFixed(2)}</span><button onClick={() => removeItem(item.id)} className="text-white/20 hover:text-red-400"><Trash2 className="w-4 h-4" /></button></div></div>)))}</div>
                     <div className="space-y-4 pt-10 border-t border-white/10">
-                       <div className="flex justify-between items-center text-xs font-bold text-blue-100/50 uppercase tracking-widest"><span>Items Subtotal</span><span>£{baseItemsPrice.toFixed(2)}</span></div>
-                       <div className="flex justify-between items-center text-xs font-bold text-blue-100/50 uppercase tracking-widest"><span>{currentPlan.name} Surcharge</span><span>£{currentPlan.surcharge.toFixed(2)}</span></div>
-                       <div className="flex justify-between items-center pt-6"><span className="text-2xl font-black italic uppercase tracking-tighter">Total Amount</span><span className="text-4xl font-black text-[var(--brand-orange)] tracking-tight">£{totalAmount.toFixed(2)}</span></div>
+                       <div className="flex justify-between items-center text-xs font-bold text-blue-100/50 uppercase tracking-widest italic"><span>Cargo Value</span><span>£{baseItemsPrice.toFixed(2)}</span></div>
+                       <div className="flex justify-between items-center text-xs font-bold text-blue-100/50 uppercase tracking-widest italic"><span>Plan Fee</span><span>£{currentPlan.surcharge.toFixed(2)}</span></div>
+                       <div className="flex justify-between items-center pt-6"><span className="text-2xl font-black italic uppercase tracking-tighter">Total Price</span><span className="text-4xl font-black text-[var(--brand-orange)] tracking-tight">£{totalAmount.toFixed(2)}</span></div>
                     </div>
                  </div>
               </div>
@@ -356,9 +375,9 @@ export default function BookingPage() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-12 text-center">
            <motion.div initial={{ scale: 0.8, y: 20 }} animate={{ scale: 1, y: 0 }} className="max-w-md">
               <div className="w-32 h-32 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-10 shadow-2xl shadow-green-500/20"><CheckCircle2 className="w-16 h-16" /></div>
-              <h2 className="text-5xl font-black text-[var(--brand-blue)] mb-6 italic uppercase tracking-tighter">Booking <br /><span className="text-[var(--brand-orange)] font-black">Success!</span></h2>
-              <p className="text-slate-500 text-lg mb-12 font-medium">Your request has been received. Our team will bring your items to life. Expect a call shortly.</p>
-              <Link href="/" className="btn-primary px-16 py-5 rounded-[2rem] text-xl block shadow-2xl">Return to Homepage</Link>
+              <h2 className="text-5xl font-black text-[var(--brand-blue)] mb-6 italic uppercase tracking-tighter">Dispatch <br /><span className="text-[var(--brand-orange)] font-black">Authorized!</span></h2>
+              <p className="text-slate-500 text-lg mb-12 font-medium italic">Your booking is secured. A logistics expert will confirm your pickup slot within 30 minutes.</p>
+              <Link href="/" className="btn-primary px-16 py-5 rounded-[2rem] text-xl block shadow-2xl uppercase italic tracking-tighter">Return to Control</Link>
            </motion.div>
         </motion.div>
       )}
