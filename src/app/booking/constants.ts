@@ -10,7 +10,8 @@ import {
   Bath, 
   Briefcase, 
   Warehouse,
-  Truck
+  Truck,
+  Package as PackageIcon
 } from 'lucide-react';
 
 export const CATEGORIES = [
@@ -52,7 +53,7 @@ export const ITEMS = [
   { id: 'washing-machine', name: 'Washing Machine', category: 'kitchen', basePrice: 45 },
   { id: 'microwave', name: 'Microwave', category: 'kitchen', basePrice: 10 },
   
-  // Vehicle Parts (From Proovia reference)
+  // Vehicle Parts
   { id: 'car-door', name: 'Car Door', category: 'vehicle', basePrice: 30 },
   { id: 'bumper-kit', name: 'Bumpers Kit', category: 'vehicle', basePrice: 25 },
   { id: 'bodykit-lwb', name: 'Custom Bodykit LWB', category: 'vehicle', basePrice: 60 },
@@ -61,82 +62,46 @@ export const ITEMS = [
 export const SERVICE_FEATURES = [
   'Delivery timescale',
   'Exclusivity',
-  'State of the art service',
   'Two men team',
   'Careful protection',
-  'In time delivery',
   'Level of service',
   'Damage cover',
-  'Time slot',
   'Tracking (basic)',
-  'Time slot the day before',
-  'Real time tracking',
   'SMS updates',
-  '1-2 stops away notifications'
+  'Real time notifications'
 ];
 
 export const SERVICE_PLANS = [
   {
-    id: 'eco',
-    name: 'Proovia Eco',
-    surcharge: 25,
-    details: {
-      'Delivery timescale': '7-10 working days',
-      'Exclusivity': false,
-      'State of the art service': true,
-      'Two men team': true,
-      'Careful protection': true,
-      'In time delivery': true,
-      'Level of service': 'door to door',
-      'Damage cover': '£0',
-      'Time slot': 'whole day',
-      'Tracking (basic)': false,
-      'Time slot the day before': false,
-      'Real time tracking': false,
-      'SMS updates': false,
-      '1-2 stops away notifications': false
-    }
-  },
-  {
     id: 'standard',
     name: 'Standard',
-    surcharge: 45,
+    surcharge: 0,
     details: {
       'Delivery timescale': '5-7 working days',
       'Exclusivity': false,
-      'State of the art service': true,
       'Two men team': true,
       'Careful protection': true,
-      'In time delivery': true,
       'Level of service': 'ground floor',
-      'Damage cover': 'up to £100',
-      'Time slot': '4 hours',
+      'Damage cover': 'up to £50',
       'Tracking (basic)': true,
-      'Time slot the day before': false,
-      'Real time tracking': false,
       'SMS updates': true,
-      '1-2 stops away notifications': false
+      'Real time notifications': false
     }
   },
   {
     id: 'premium',
     name: 'Premium',
-    surcharge: 85,
+    surcharge: 15,
     details: {
       'Delivery timescale': '2-4 working days',
       'Exclusivity': false,
-      'State of the art service': true,
       'Two men team': true,
       'Careful protection': true,
-      'In time delivery': true,
       'Level of service': 'room of choice',
-      'Damage cover': 'up to £300',
-      'Time slot': '2 hours',
+      'Damage cover': 'up to £500',
       'Tracking (basic)': true,
-      'Time slot the day before': true,
-      'Real time tracking': true,
       'SMS updates': true,
-      '1-2 stops away notifications': true
+      'Real time notifications': true
     }
   }
 ];

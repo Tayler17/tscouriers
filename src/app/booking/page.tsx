@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   User, 
@@ -44,16 +44,26 @@ export default function BookingPage() {
       parking: 'NO', floor: 'Door', steps: 'NO'
     },
     items: [] as { id: string, name: string, quantity: number, price: number }[],
-    planId: 'eco',
+    planId: 'standard',
     dates: { collection: '30 Mar 2026', delivery: '31 Mar 2026' }
   });
+
+  const [dynamicPlans, setDynamicPlans] = useState(SERVICE_PLANS);
+
+  // Load plans from localStorage if admin changed them
+  useEffect(() => {
+    const savedPlans = localStorage.getItem('ts_service_plans');
+    if (savedPlans) {
+      setDynamicPlans(JSON.parse(savedPlans));
+    }
+  }, []);
 
   const [submitted, setSubmitted] = useState(false);
 
   // Derived Values
   const selectedItemsCount = useMemo(() => formData.items.reduce((acc, i) => acc + i.quantity, 0), [formData.items]);
   const baseItemsPrice = useMemo(() => formData.items.reduce((acc, i) => acc + (i.price * i.quantity), 0), [formData.items]);
-  const currentPlan = useMemo(() => SERVICE_PLANS.find(p => p.id === formData.planId) || SERVICE_PLANS[0], [formData.planId]);
+  const currentPlan = useMemo(() => dynamicPlans.find(p => p.id === formData.planId) || dynamicPlans[0], [formData.planId, dynamicPlans]);
   
   const totalAmount = baseItemsPrice + currentPlan.surcharge;
 
@@ -80,19 +90,6 @@ export default function BookingPage() {
     setFormData(prev => ({
       ...prev,
       items: prev.items.filter(i => i.id !== id)
-    }));
-  };
-
-  const updateItemQty = (id: string, delta: number) => {
-    setFormData(prev => ({
-      ...prev,
-      items: prev.items.map(i => {
-        if (i.id === id) {
-          const newQty = Math.max(1, i.quantity + delta);
-          return { ...i, quantity: newQty };
-        }
-        return i;
-      })
     }));
   };
 
@@ -129,8 +126,8 @@ export default function BookingPage() {
                   <Truck className="w-6 h-6" />
                </div>
                <div>
-                  <h1 className="text-2xl font-black text-[var(--brand-blue)] tracking-tight">Booking <span className="text-[var(--brand-orange)]">Pro</span></h1>
-                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Premium Logistics Assistant</p>
+                  <h1 className="text-2xl font-black text-[var(--brand-blue)] tracking-tight">Booking <span className="text-[var(--brand-orange)]">Assistant</span></h1>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest leading-none">Process your shipment in 6 steps</p>
                </div>
             </div>
             
@@ -151,38 +148,54 @@ export default function BookingPage() {
            <div className="lg:col-span-8 space-y-8">
               <AnimatePresence mode="wait">
                  
-                 {/* STEP 1: ADDRESSES & CONTACTS (Now First) */}
+                 {/* STEP 1: SIMPLE ADDRESSES */}
                  {step === 1 && (
                    <motion.div key="s1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-8">
                       <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-10 space-y-12">
-                         <section>
-                            <h3 className="text-2xl font-black text-[var(--brand-blue)] mb-8 flex items-center gap-3 italic uppercase tracking-tighter"><User className="w-7 h-7 text-[var(--brand-orange)]" /> Customer <span className="text-[var(--brand-orange)]">Details</span></h3>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                               <input type="text" placeholder="Full name" value={formData.customer.name} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, name: e.target.value } }))} className="input-booking" />
-                               <input type="email" placeholder="example@mail.com" value={formData.customer.email} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, email: e.target.value } }))} className="input-booking" />
-                               <input type="text" placeholder="Phone number" value={formData.customer.phone} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, phone: e.target.value } }))} className="input-booking" />
+                         <div className="text-center space-y-2 mb-4">
+                            <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Get a <span className="text-[var(--brand-orange)]">Quick Quote</span></h2>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Where should we pick up and deliver?</p>
+                         </div>
+                         <div className="grid grid-cols-1 gap-10">
+                            <div className="relative group">
+                               <div className="absolute -left-4 top-1/2 -translate-y-1/2 w-1.5 h-12 bg-[var(--brand-orange)] rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity" />
+                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block px-2">Pickup Address</label>
+                               <div className="relative">
+                                  <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-300" />
+                                  <input 
+                                    type="text" 
+                                    placeholder="Enter full pickup address (Street, City, Postcode)" 
+                                    value={formData.collection.address} 
+                                    onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, address: e.target.value } }))} 
+                                    className="input-booking py-6 pl-16 text-lg" 
+                                  />
+                               </div>
                             </div>
-                         </section>
-                         <section>
-                            <div className="flex items-center justify-between mb-8"><h3 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3 italic uppercase tracking-tighter"><MapPin className="w-6 h-6 text-[var(--brand-orange)]" /> Collection <span className="text-[var(--brand-orange)]">Address</span></h3><label className="flex items-center gap-2 cursor-pointer group"><input type="checkbox" className="hidden" checked={formData.collection.isSameAsCustomer} onChange={() => handleSameAsCustomer('collection')} /><div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${formData.collection.isSameAsCustomer ? 'bg-[var(--brand-orange)] border-[var(--brand-orange)]' : 'border-slate-200'}`}>{formData.collection.isSameAsCustomer && <CheckCircle2 className="w-4 h-4 text-white" />}</div><span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Same as Customer</span></label></div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"><input type="text" placeholder="Name" value={formData.collection.name} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, name: e.target.value } }))} className="input-booking" /><input type="email" placeholder="Email" value={formData.collection.email} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, email: e.target.value } }))} className="input-booking" /><input type="text" placeholder="Phone" value={formData.collection.phone} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, phone: e.target.value } }))} className="input-booking" /></div>
-                            <input type="text" placeholder="House/Street, Postcode, City..." value={formData.collection.address} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, address: e.target.value } }))} className="input-booking w-full" />
-                         </section>
-                         <section>
-                            <div className="flex items-center justify-between mb-8"><h3 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3 italic uppercase tracking-tighter"><MapPin className="w-6 h-6 text-[var(--brand-blue)]" /> Delivery <span className="text-[var(--brand-blue)]">Address</span></h3><label className="flex items-center gap-2 cursor-pointer group"><input type="checkbox" className="hidden" checked={formData.delivery.isSameAsCustomer} onChange={() => handleSameAsCustomer('delivery')} /><div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${formData.delivery.isSameAsCustomer ? 'bg-[var(--brand-blue)] border-[var(--brand-blue)]' : 'border-slate-200'}`}>{formData.delivery.isSameAsCustomer && <CheckCircle2 className="w-4 h-4 text-white" />}</div><span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Same as Customer</span></label></div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6"><input type="text" placeholder="Name" value={formData.delivery.name} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, name: e.target.value } }))} className="input-booking" /><input type="email" placeholder="Email" value={formData.delivery.email} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, email: e.target.value } }))} className="input-booking" /><input type="text" placeholder="Phone" value={formData.delivery.phone} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, phone: e.target.value } }))} className="input-booking" /></div>
-                            <input type="text" placeholder="House/Street, Postcode, City..." value={formData.delivery.address} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, address: e.target.value } }))} className="input-booking w-full" />
-                         </section>
+                            <div className="relative group">
+                               <div className="absolute -left-4 top-1/2 -translate-y-1/2 w-1.5 h-12 bg-[var(--brand-blue)] rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity" />
+                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block px-2">Delivery Destination</label>
+                               <div className="relative">
+                                  <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-300" />
+                                  <input 
+                                    type="text" 
+                                    placeholder="Enter full delivery address (Street, City, Postcode)" 
+                                    value={formData.delivery.address} 
+                                    onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, address: e.target.value } }))} 
+                                    className="input-booking py-6 pl-16 text-lg" 
+                                  />
+                               </div>
+                            </div>
+                         </div>
                       </div>
                    </motion.div>
                  )}
 
-                 {/* STEP 2: ITEM PICKER (Now Second) */}
+                 {/* STEP 2: CHOOSE PACKAGE (ITEM PICKER) */}
                  {step === 2 && (
                    <motion.div key="s2" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
                       <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row h-[700px]">
                          <div className="w-full md:w-64 bg-slate-50 border-r border-slate-100 p-6 space-y-2 overflow-y-auto">
-                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6 italic">Select Categories</h3>
+                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6 italic">Item Categories</h3>
                             {CATEGORIES.map(cat => (
                               <button 
                                 key={cat.id} 
@@ -197,7 +210,7 @@ export default function BookingPage() {
                          <div className="flex-grow flex flex-col p-8">
                             <div className="relative mb-8">
                                <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
-                               <input type="text" placeholder="What are you shipping? (e.g. Barrel, Sofa...)" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-16 pr-8 py-5 rounded-2xl bg-slate-50 border border-slate-100 focus:bg-white focus:ring-4 focus:ring-blue-500/5 outline-none transition-all font-bold" />
+                               <input type="text" placeholder="Search packages (Barrel, Box, Sofa...)" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-16 pr-8 py-5 rounded-2xl bg-slate-50 border border-slate-100 focus:bg-white focus:ring-4 focus:ring-blue-500/5 outline-none transition-all font-bold" />
                             </div>
                             <div className="flex-grow overflow-y-auto space-y-3 pr-2 custom-scrollbar">
                                {filteredItems.map(item => (
@@ -208,7 +221,7 @@ export default function BookingPage() {
                                        </div>
                                        <span className="font-bold text-slate-700 italic">{item.name}</span>
                                     </div>
-                                    <button onClick={() => addItem(item)} className="bg-[var(--brand-orange)] text-white px-6 py-2 rounded-xl text-xs font-black uppercase shadow-lg shadow-orange-500/20 active:scale-95 transition-all">Add Item</button>
+                                    <button onClick={() => addItem(item)} className="bg-[var(--brand-orange)] text-white px-6 py-2 rounded-xl text-xs font-black uppercase shadow-lg shadow-orange-500/20 active:scale-95 transition-all">Add to Cart</button>
                                  </div>
                                ))}
                             </div>
@@ -217,103 +230,118 @@ export default function BookingPage() {
                    </motion.div>
                  )}
 
-                 {/* STEP 3: LOGISTICS (NO CHANGE IN LOGIC, JUST STEP NUMBER) */}
+                 {/* STEP 3: SENDER & BENEFICIARY DATA */}
                  {step === 3 && (
                    <motion.div key="s3" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-8">
-                      <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-12"><div className="grid grid-cols-1 md:grid-cols-2 gap-12"><div className="space-y-8"><h4 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3 italic uppercase tracking-tighter"><Truck className="w-5 h-5 text-[var(--brand-orange)]" /> Support at Origin</h4><div className="bg-slate-50 p-8 rounded-3xl space-y-6"><div className="space-y-4"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">Parking availability?</p><div className="flex flex-wrap gap-2">{['NO', 'OUTSIDE', 'STREET', 'NEARBY'].map(opt => (<button key={opt} onClick={() => setFormData(p => ({ ...p, collection: { ...p.collection, parking: opt } }))} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${formData.collection.parking === opt ? 'bg-[var(--brand-blue)] text-white' : 'bg-white text-slate-400 border border-slate-100'}`}>{opt}</button>))}</div></div></div></div><div className="space-y-8"><h4 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3 italic uppercase tracking-tighter"><Package className="w-5 h-5 text-[var(--brand-blue)]" /> Support at Dest.</h4><div className="bg-slate-50 p-8 rounded-3xl space-y-6"><div className="space-y-4"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic">Parking availability?</p><div className="flex flex-wrap gap-2">{['NO', 'OUTSIDE', 'STREET', 'NEARBY'].map(opt => (<button key={opt} onClick={() => setFormData(p => ({ ...p, delivery: { ...p.delivery, parking: opt } }))} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${formData.delivery.parking === opt ? 'bg-[var(--brand-blue)] text-white' : 'bg-white text-slate-400 border border-slate-100'}`}>{opt}</button>))}</div></div></div></div></div></div>
+                      <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-10 space-y-12">
+                         <div className="text-center mb-8">
+                             <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Contact <span className="text-[var(--brand-orange)]">Information</span></h2>
+                             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">Required for global customs and delivery tracking.</p>
+                         </div>
+                         <section>
+                            <h3 className="text-xl font-black text-[var(--brand-blue)] mb-8 flex items-center gap-3 italic uppercase tracking-tighter"><User className="w-7 h-7 text-[var(--brand-orange)]" /> Sender (Remitente)</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                               <input type="text" placeholder="Full name" value={formData.customer.name} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, name: e.target.value }, collection: { ...p.collection, name: e.target.value } }))} className="input-booking" />
+                               <input type="text" placeholder="Phone of Sender" value={formData.customer.phone} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, phone: e.target.value }, collection: { ...p.collection, phone: e.target.value } }))} className="input-booking" />
+                            </div>
+                         </section>
+                         <section className="pt-8 border-t border-slate-100">
+                            <h3 className="text-xl font-black text-[var(--brand-blue)] mb-8 flex items-center gap-3 italic uppercase tracking-tighter"><User className="w-7 h-7 text-[var(--brand-blue)]" /> Beneficiary (Destinatario)</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                               <input type="text" placeholder="Beneficiary Full Name" value={formData.delivery.name} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, name: e.target.value } }))} className="input-booking" />
+                               <input type="text" placeholder="Beneficiary Phone" value={formData.delivery.phone} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, phone: e.target.value } }))} className="input-booking" />
+                            </div>
+                         </section>
+                      </div>
                    </motion.div>
                  )}
 
-                 {/* STEP 4: SERVICE PLANS (PROOVIA STYLE) */}
+                 {/* STEP 4: LOGISTICS SETUP */}
                  {step === 4 && (
-                   <motion.div key="s4" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-12">
+                   <motion.div key="s4" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-8">
+                      <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-12">
+                         <div className="text-center mb-10">
+                            <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Support at <span className="text-[var(--brand-orange)]">Location</span></h2>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">Help our drivers plan your pickup and delivery.</p>
+                         </div>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                            <div className="space-y-8">
+                               <h4 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3 italic uppercase tracking-tighter"><Truck className="w-5 h-5 text-[var(--brand-orange)]" /> Origin (Pickup)</h4>
+                               <div className="bg-slate-50 p-8 rounded-3xl space-y-6">
+                                  <div className="space-y-4">
+                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic flex items-center gap-2"><Info className="w-3 h-3" /> Parking availability?</p>
+                                     <div className="flex flex-wrap gap-2">
+                                        {['NO', 'OUTSIDE', 'STREET', 'NEARBY'].map(opt => (
+                                           <button key={opt} onClick={() => setFormData(p => ({ ...p, collection: { ...p.collection, parking: opt } }))} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${formData.collection.parking === opt ? 'bg-[var(--brand-blue)] text-white' : 'bg-white text-slate-400 border border-slate-100'}`}>{opt}</button>
+                                        ))}
+                                     </div>
+                                  </div>
+                               </div>
+                            </div>
+                            <div className="space-y-8">
+                               <h4 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3 italic uppercase tracking-tighter"><Package className="w-5 h-5 text-[var(--brand-blue)]" /> Destination</h4>
+                               <div className="bg-slate-50 p-8 rounded-3xl space-y-6">
+                                  <div className="space-y-4">
+                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic flex items-center gap-2"><Info className="w-3 h-3" /> Delivery Floor?</p>
+                                     <div className="flex flex-wrap gap-2">
+                                        {['GROUND', '1st FLOOR', 'STAIRS', 'ELEVATOR'].map(opt => (
+                                           <button key={opt} onClick={() => setFormData(p => ({ ...p, delivery: { ...p.delivery, floor: opt } }))} className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${formData.delivery.floor === opt ? 'bg-[var(--brand-blue)] text-white' : 'bg-white text-slate-400 border border-slate-100'}`}>{opt}</button>
+                                        ))}
+                                     </div>
+                                  </div>
+                               </div>
+                            </div>
+                         </div>
+                      </div>
+                   </motion.div>
+                 )}
+
+                 {/* STEP 5: PLAN SELECTION (Standard/Premium) */}
+                 {step === 5 && (
+                   <motion.div key="s5" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="space-y-12">
                       <div className="text-center space-y-4">
-                         <h3 className="text-4xl font-black text-[var(--brand-blue)] italic uppercase tracking-tighter">Your <span className="text-[var(--brand-orange)]">Delivery Quote</span></h3>
-                         <p className="text-slate-400 text-sm font-bold uppercase tracking-widest italic">Premium logistics tailored for the Dominican community/business.</p>
+                         <h3 className="text-4xl font-black text-[var(--brand-blue)] italic uppercase tracking-tighter">Choose Your <span className="text-[var(--brand-orange)]">Service Level</span></h3>
+                         <p className="text-slate-400 text-sm font-bold uppercase tracking-widest italic">Standard for economy, Premium for speed and protection.</p>
                       </div>
 
                       {/* Plan Selection Cards */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                         {SERVICE_PLANS.map(plan => {
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-10 max-w-4xl mx-auto px-10">
+                         {dynamicPlans.map(plan => {
                             const total = baseItemsPrice + plan.surcharge;
                             return (
                               <div 
                                 key={plan.id} 
-                                className={`relative p-10 rounded-[3rem] border-4 transition-all cursor-pointer overflow-hidden ${formData.planId === plan.id ? 'border-[var(--brand-orange)] bg-white shadow-2xl scale-105 z-10' : 'border-transparent bg-white/60 hover:border-slate-200'}`}
+                                className={`relative p-12 rounded-[3.5rem] border-4 transition-all cursor-pointer overflow-hidden ${formData.planId === plan.id ? 'border-[var(--brand-orange)] bg-white shadow-2xl scale-105 z-10' : 'border-transparent bg-white/60 hover:border-slate-200'}`}
                                 onClick={() => setFormData(p => ({ ...p, planId: plan.id }))}
                               >
-                                 <div className="flex justify-between items-start mb-8">
-                                    <h4 className="text-xl font-black text-slate-800 italic uppercase underline decoration-[var(--brand-orange)] decoration-2 underline-offset-4">{plan.name}</h4>
-                                    <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${formData.planId === plan.id ? 'bg-[var(--brand-orange)] border-[var(--brand-orange)]' : 'border-slate-200'}`}>
-                                       {formData.planId === plan.id && <div className="w-2.5 h-2.5 rounded-full bg-white" />}
+                                 <div className="flex justify-between items-start mb-8 text-center flex-col gap-4">
+                                    <h4 className="text-2xl font-black text-slate-800 italic uppercase underline decoration-[var(--brand-orange)] decoration-4 underline-offset-8 mx-auto">{plan.name}</h4>
+                                    <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center transition-all mx-auto ${formData.planId === plan.id ? 'bg-[var(--brand-orange)] border-[var(--brand-orange)] shadow-lg shadow-orange-500/20' : 'border-slate-200'}`}>
+                                       {formData.planId === plan.id && <div className="w-4 h-4 rounded-full bg-white" />}
                                     </div>
                                  </div>
-                                 <div className="space-y-1">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Total Estimate</p>
+                                 <div className="space-y-1 text-center bg-slate-50 py-6 rounded-3xl mb-8">
+                                    <p className="text-[12px] font-black text-slate-400 uppercase tracking-widest italic">Total with Plan</p>
                                     <h5 className="text-5xl font-black text-[var(--brand-blue)] tracking-tight">£{total.toFixed(2)}</h5>
                                  </div>
                                  
-                                 {formData.planId === plan.id && (
-                                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-8 flex items-center gap-2 text-[10px] font-black text-emerald-500 uppercase tracking-widest">
-                                      <CheckCircle2 className="w-4 h-4" /> Recommended Option
-                                   </motion.div>
-                                 )}
+                                 <div className="space-y-4 italic px-4">
+                                    {Object.entries(plan.details).slice(0, 4).map(([k, v]) => (
+                                       <div key={k} className="flex items-center justify-between text-xs font-bold border-b border-slate-100 pb-2">
+                                          <span className="text-slate-400 uppercase text-[10px] tracking-tighter">{k}</span>
+                                          <span className="text-slate-700 uppercase">{typeof v === 'boolean' ? (v ? <Check className="w-4 h-4 text-emerald-500" /> : <X className="w-4 h-4 text-slate-200" />) : v}</span>
+                                       </div>
+                                    ))}
+                                 </div>
                               </div>
                             );
                          })}
                       </div>
 
-                      {/* Comparison Table */}
-                      <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden mt-12">
-                         <div className="overflow-x-auto">
-                            <table className="w-full text-left">
-                               <thead className="bg-slate-50">
-                                  <tr>
-                                     <th className="px-8 py-6 text-xs font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 italic">Global Logistics Comparison</th>
-                                     {SERVICE_PLANS.map(plan => (
-                                       <th key={plan.id} className={`px-8 py-6 text-center text-sm font-black italic uppercase tracking-tighter border-b ${formData.planId === plan.id ? 'text-[var(--brand-orange)] border-[var(--brand-orange)]/20' : 'text-slate-800 border-slate-100'}`}>
-                                          {plan.name}
-                                       </th>
-                                     ))}
-                                  </tr>
-                               </thead>
-                               <tbody className="divide-y divide-slate-50 italic">
-                                  {SERVICE_FEATURES.map((feature, idx) => (
-                                    <tr key={idx} className="group hover:bg-slate-50/50 transition-colors">
-                                       <td className="px-8 py-5 text-sm font-bold text-slate-600 uppercase tracking-tight italic">{feature}</td>
-                                       {SERVICE_PLANS.map(plan => {
-                                          const detail = plan.details[feature as keyof typeof plan.details];
-                                          const isBool = typeof detail === 'boolean';
-                                          return (
-                                            <td key={plan.id} className={`px-8 py-5 text-center text-xs font-black border-l border-slate-50 ${formData.planId === plan.id ? 'bg-orange-50/10 text-slate-900 font-black' : 'text-slate-500'}`}>
-                                               {isBool ? (
-                                                  detail ? <Check className="w-5 h-5 mx-auto text-emerald-500" /> : <X className="w-5 h-5 mx-auto text-slate-300" />
-                                               ) : (
-                                                  <span className="uppercase">{detail as string}</span>
-                                               )}
-                                            </td>
-                                          );
-                                       })}
-                                    </tr>
-                                  ))}
-                               </tbody>
-                            </table>
-                         </div>
-                         <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] italic">Full insurance included in all sea shipments to the DR.</p>
-                         </div>
+                      <div className="text-center pt-8">
+                         <p className="text-[10px] font-bold text-slate-300 uppercase tracking-[0.2em] italic">Prices calculated based on base shipping costs + plan tier level.</p>
                       </div>
                    </motion.div>
-                 )}
-
-                 {/* STEP 5: FINAL REVIEW */}
-                 {step === 5 && (
-                    <motion.div key="s5" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="bg-white rounded-[2.5rem] p-12 text-center shadow-xl border border-slate-100">
-                       <div className="w-24 h-24 bg-blue-100 text-[var(--brand-blue)] rounded-full flex items-center justify-center mx-auto mb-8 shadow-lg shadow-blue-500/10"><ShieldCheck className="w-12 h-12" /></div>
-                       <h2 className="text-4xl font-extrabold text-[var(--brand-blue)] mb-4 uppercase italic tracking-tighter">Secure <span className="text-[var(--brand-orange)]">Summary</span></h2>
-                       <p className="text-slate-500 max-w-md mx-auto mb-12 font-bold uppercase text-xs tracking-widest leading-relaxed italic">Double check your addresses and items. We are ready to dispatch.</p>
-                       <button onClick={nextStep} className="btn-primary w-full max-w-sm py-6 text-xl shadow-2xl flex items-center justify-center gap-3">Proceed to Checkout <CreditCard className="w-6 h-6" /></button>
-                    </motion.div>
                  )}
 
                  {/* STEP 6: SECURE PAYMENT */}
@@ -327,45 +355,69 @@ export default function BookingPage() {
 
               {/* Controls */}
               {step < 5 && (
-                 <div className="flex justify-between items-center px-4 mt-12">
-                    <button onClick={prevStep} disabled={step === 1} className={`flex items-center gap-2 text-sm font-black uppercase tracking-widest transition-all ${step === 1 ? 'opacity-0 invisible' : 'text-slate-400 hover:text-[var(--brand-blue)]'}`}><ArrowLeft className="w-4 h-4" /> Previous Step</button>
-                    <button onClick={nextStep} className="btn-primary px-16 py-4 rounded-2xl flex items-center gap-3 shadow-xl">Next Phase <ArrowRight className="w-5 h-5" /></button>
+                 <div className="flex justify-between items-center px-4 mt-12 bg-white/50 backdrop-blur-sm p-4 rounded-3xl border border-white">
+                    <button onClick={prevStep} disabled={step === 1} className={`flex items-center gap-2 text-sm font-black uppercase tracking-widest transition-all ${step === 1 ? 'opacity-0 invisible' : 'text-slate-400 hover:text-[var(--brand-blue)]'}`}><ArrowLeft className="w-4 h-4" /> Previous</button>
+                    <button 
+                      onClick={nextStep} 
+                      className="btn-primary px-16 py-4 rounded-2xl flex items-center gap-3 shadow-xl shadow-orange-500/10 active:scale-95 transition-all"
+                    >
+                      {step === 1 ? 'Get Quote' : 'Continue'} <ArrowRight className="w-5 h-5" />
+                    </button>
                  </div>
               )}
            </div>
 
-           {/* Sidebar: Summary & Extras (Persistent during address input too) */}
+           {/* Sidebar: Snapshot Summary */}
            <div className="lg:col-span-4 space-y-8 sticky top-24">
               <div className="bg-[var(--brand-blue)] rounded-[2.5rem] p-10 text-white shadow-2xl shadow-blue-900/40 relative overflow-hidden">
                  <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 -translate-y-12 translate-x-12 rounded-full" />
                  <div className="relative z-10 flex flex-col h-full">
-                    <div className="flex justify-between items-center mb-10 border-b border-white/10 pb-6 italic"><h3 className="text-xl font-black uppercase tracking-tighter leading-none">Booking <br /><span className="text-[var(--brand-orange)]">Snapshot</span></h3><ShoppingCart className="w-6 h-6 text-white/30" /></div>
+                    <div className="flex justify-between items-center mb-10 border-b border-white/10 pb-6 italic"><h3 className="text-xl font-black uppercase tracking-tighter leading-none">Global Booking <br /><span className="text-[var(--brand-orange)]">Snapshot</span></h3><ShoppingCart className="w-6 h-6 text-white/30" /></div>
                     
                     {/* Condensed Address View */}
                     {(formData.collection.address || formData.delivery.address) && (
-                      <div className="mb-8 space-y-3 bg-white/5 p-4 rounded-2xl border border-white/5">
+                      <div className="mb-8 space-y-3 bg-white/5 p-5 rounded-3xl border border-white/5">
                         {formData.collection.address && (
-                          <div className="flex items-start gap-3">
-                            <MapPin className="w-3 h-3 text-[var(--brand-orange)] mt-1" />
-                            <p className="text-[9px] font-bold text-blue-100/70 truncate uppercase">From: {formData.collection.address}</p>
+                          <div className="flex items-start gap-4">
+                            <div className="w-5 h-5 bg-orange-500/20 rounded-full flex items-center justify-center mt-1 shrink-0"><MapPin className="w-3 h-3 text-[var(--brand-orange)]" /></div>
+                            <p className="text-[10px] font-bold text-blue-100/70 uppercase leading-relaxed">Origin: {formData.collection.address}</p>
                           </div>
                         )}
                         {formData.delivery.address && (
-                          <div className="flex items-start gap-3">
-                            <MapPin className="w-3 h-3 text-blue-400 mt-1" />
-                            <p className="text-[9px] font-bold text-blue-100/70 truncate uppercase">To: {formData.delivery.address}</p>
+                          <div className="flex items-start gap-4 pt-2 border-t border-white/5">
+                            <div className="w-5 h-5 bg-blue-500/20 rounded-full flex items-center justify-center mt-1 shrink-0"><MapPin className="w-3 h-3 text-blue-400" /></div>
+                            <p className="text-[10px] font-bold text-blue-100/70 uppercase leading-relaxed">Dest.: {formData.delivery.address}</p>
                           </div>
                         )}
                       </div>
                     )}
 
-                    <div className="flex-grow space-y-6 mb-10">{formData.items.length === 0 ? (<div className="text-center py-10 text-white/30 italic text-sm">Waiting for items...</div>) : (formData.items.map(item => (<div key={item.id} className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5 group hover:bg-white/10 transition-colors"><div><p className="font-bold text-sm text-blue-50">{item.name}</p><p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Qty: {item.quantity}</p></div><div className="flex items-center gap-4"><span className="font-black text-blue-100">£{(item.price * item.quantity).toFixed(2)}</span><button onClick={() => removeItem(item.id)} className="text-white/20 hover:text-red-400"><Trash2 className="w-4 h-4" /></button></div></div>)))}</div>
-                    <div className="space-y-4 pt-10 border-t border-white/10">
-                       <div className="flex justify-between items-center text-xs font-bold text-blue-100/50 uppercase tracking-widest italic"><span>Cargo Value</span><span>£{baseItemsPrice.toFixed(2)}</span></div>
-                       <div className="flex justify-between items-center text-xs font-bold text-blue-100/50 uppercase tracking-widest italic"><span>Plan Fee</span><span>£{currentPlan.surcharge.toFixed(2)}</span></div>
-                       <div className="flex justify-between items-center pt-6"><span className="text-2xl font-black italic uppercase tracking-tighter">Total Price</span><span className="text-4xl font-black text-[var(--brand-orange)] tracking-tight">£{totalAmount.toFixed(2)}</span></div>
+                    <div className="flex-grow space-y-4 mb-10 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                       {formData.items.length === 0 ? (
+                          <div className="text-center py-10 text-white/20 italic text-sm border-2 border-dashed border-white/10 rounded-3xl">Waiting for pack items...</div>
+                       ) : (
+                          formData.items.map(item => (
+                             <div key={item.id} className="flex justify-between items-center bg-white/5 p-4 rounded-2xl border border-white/5 group hover:bg-white/10 transition-colors">
+                                <div><p className="font-bold text-xs text-blue-50 tracking-tight">{item.name}</p><p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Quantity: {item.quantity}</p></div>
+                                <div className="flex items-center gap-4"><span className="font-black text-xs text-blue-100">£{(item.price * item.quantity).toFixed(2)}</span><button onClick={() => removeItem(item.id)} className="text-white/20 hover:text-red-400 transition-colors"><Trash2 className="w-3.5 h-3.5" /></button></div>
+                             </div>
+                          ))
+                       )}
+                    </div>
+
+                    <div className="space-y-4 pt-10 border-t border-white/10 mt-auto">
+                       <div className="flex justify-between items-center text-xs font-bold text-blue-100/40 uppercase tracking-widest italic"><span>Cargo Value</span><span>£{baseItemsPrice.toFixed(2)}</span></div>
+                       <div className="flex justify-between items-center text-xs font-bold text-blue-100/40 uppercase tracking-widest italic"><span>Tier Surcharge</span><span>£{currentPlan.surcharge.toFixed(2)}</span></div>
+                       <div className="flex justify-between items-center pt-8"><span className="text-2xl font-black italic uppercase tracking-tighter">Grand Total</span><span className="text-4xl font-black text-[var(--brand-orange)] tracking-tight">£{totalAmount.toFixed(2)}</span></div>
                     </div>
                  </div>
+              </div>
+              
+              {/* Trust Badge */}
+              <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm text-center">
+                 <ShieldCheck className="w-10 h-10 text-emerald-500 mx-auto mb-4" />
+                 <p className="text-[10px] font-black text-slate-900 uppercase tracking-widest mb-1">Secured Logistics</p>
+                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-relaxed">Full insurance included in premium sea freight voyages.</p>
               </div>
            </div>
         </div>
@@ -375,18 +427,18 @@ export default function BookingPage() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-12 text-center">
            <motion.div initial={{ scale: 0.8, y: 20 }} animate={{ scale: 1, y: 0 }} className="max-w-md">
               <div className="w-32 h-32 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-10 shadow-2xl shadow-green-500/20"><CheckCircle2 className="w-16 h-16" /></div>
-              <h2 className="text-5xl font-black text-[var(--brand-blue)] mb-6 italic uppercase tracking-tighter">Dispatch <br /><span className="text-[var(--brand-orange)] font-black">Authorized!</span></h2>
-              <p className="text-slate-500 text-lg mb-12 font-medium italic">Your booking is secured. A logistics expert will confirm your pickup slot within 30 minutes.</p>
-              <Link href="/" className="btn-primary px-16 py-5 rounded-[2rem] text-xl block shadow-2xl uppercase italic tracking-tighter">Return to Control</Link>
+              <h2 className="text-5xl font-black text-[var(--brand-blue)] mb-6 italic uppercase tracking-tighter leading-none">Booking <br /><span className="text-[var(--brand-orange)] font-black italic">Successful!</span></h2>
+              <p className="text-slate-500 text-lg mb-12 font-medium italic">Our global team in UK/DR has received your order. We'll be in touch within 30 mins to confirm pickup.</p>
+              <Link href="/" className="btn-primary px-16 py-5 rounded-[2rem] text-xl block shadow-2xl uppercase italic tracking-tighter">Proceed to Dashboard</Link>
            </motion.div>
         </motion.div>
       )}
 
       <style jsx>{`
         .input-booking { width: 100%; padding: 1rem 1.5rem; border-radius: 1.25rem; background: #f8fafc; border: 1px solid #f1f5f9; outline: none; font-weight: 700; font-size: 0.875rem; transition: all 0.2s; }
-        .input-booking:focus { background: #ffffff; border-color: #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); }
+        .input-booking:focus { background: #ffffff; border-color: #cbd5e1; box-shadow: 0 10px 20px -5px rgba(0,0,0,0.05); }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f8fafc; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
       `}</style>
     </main>
