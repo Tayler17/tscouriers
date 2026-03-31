@@ -18,15 +18,24 @@ import {
   Building2,
   DollarSign,
   Layers,
-  ShieldCheck
+  ShieldCheck,
+  Newspaper,
+  HelpCircle
 } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth, UserPermissions } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
 
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    router.push('/login');
+  };
 
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/admin', permission: null },
@@ -44,6 +53,8 @@ export default function AdminSidebar() {
     { name: 'Accounting', icon: DollarSign, href: '/admin/accounting', permission: 'canAccessAccounting' },
     { name: 'HR Management', icon: Users, href: '/admin/hr', permission: 'canAccessHR' },
     { name: 'User Management', icon: ShieldCheck, href: '/admin/users', permission: 'canAccessUsers' },
+    { name: 'News Updates', icon: Newspaper, href: '/admin/settings/news', permission: 'canAccessSettings' },
+    { name: 'Common FAQs', icon: HelpCircle, href: '/admin/settings/faqs', permission: 'canAccessSettings' },
     { name: 'Settings', icon: Settings, href: '/admin/settings', permission: 'canAccessSettings' },
   ];
 
@@ -54,7 +65,7 @@ export default function AdminSidebar() {
   });
 
   return (
-    <aside className={`fixed left-0 top-0 h-screen bg-slate-950 text-slate-400 transition-all duration-300 z-50 flex flex-col ${isCollapsed ? 'w-20' : 'w-72'}`}>
+    <aside className={`fixed left-0 top-0 h-screen bg-slate-950 text-slate-400 transition-all duration-300 z-50 flex flex-col overflow-hidden ${isCollapsed ? 'w-20' : 'w-72'}`}>
       
       {/* Brand Header */}
       <div className="p-8 flex items-center justify-between border-b border-white/5">
@@ -99,7 +110,7 @@ export default function AdminSidebar() {
             )}
          </div>
          <button 
-           onClick={() => logout()}
+           onClick={handleLogout}
            className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl hover:bg-red-500/10 hover:text-red-400 transition-all text-slate-500"
          >
             <LogOut className="w-5 h-5" />

@@ -34,7 +34,7 @@ export default function DominicanRepublicService() {
               Puerta a puerta. Enviamos tus maletas, cajas, tanques y electrodomésticos desde Londres directamente a tu casa en República Dominicana.
             </p>
             <div className="flex gap-4">
-              <Link href="/quote" className="btn-primary">Request DR Quote</Link>
+              <Link href="/booking" className="btn-primary">Request DR Quote</Link>
               <Link href="/contact" className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold py-3 px-8 rounded-lg transition-all">Contact Spanish Support</Link>
             </div>
           </motion.div>
@@ -163,7 +163,7 @@ export default function DominicanRepublicService() {
           <h2 className="text-4xl font-extrabold text-[var(--brand-blue)] mb-6">Ready to Send Your Shipment?</h2>
           <p className="text-slate-500 mb-10 max-w-xl mx-auto italic">Join hundreds of families who trust TS Couriers for their shipments to Dominican Republic.</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-             <Link href="/quote" className="btn-primary flex items-center justify-center gap-2 px-10">Start Your Quote <ArrowRight className="w-5 h-5" /></Link>
+             <Link href="/booking" className="btn-primary flex items-center justify-center gap-2 px-10">Start Your Quote <ArrowRight className="w-5 h-5" /></Link>
              <Link href="https://wa.me/message/MW3IK3B7LUTSG1" className="btn-secondary flex items-center justify-center gap-2">WhatsApp Spanish Support</Link>
           </div>
         </div>

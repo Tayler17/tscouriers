@@ -58,11 +58,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem('ts_users_db', JSON.stringify([DEFAULT_ADMIN]));
     }
 
-    const savedUser = localStorage.getItem('ts_auth_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
+    // Try to restore session
+    try {
+      const savedUser = localStorage.getItem('ts_auth_user');
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && typeof parsed === 'object') {
+          setUser(parsed);
+        }
+      }
+    } catch (e) {
+      console.error("Auth restore error:", e);
+      localStorage.removeItem('ts_auth_user');
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   }, []);
 
   const login = (email: string, password?: string) => {

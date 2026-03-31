@@ -23,7 +23,7 @@ export default function SpainEuropeService() {
               Reliable transport solutions from the UK to Spain and European destinations. We provide the logistics; you maintain control of your cargo.
             </p>
             <div className="flex flex-wrap gap-4">
-               <Link href="/quote" className="btn-primary">Request EU Quote</Link>
+               <Link href="/booking" className="btn-primary">Request EU Quote</Link>
                <Link href="/contact" className="px-8 py-3 rounded-lg font-bold border-2 border-slate-200 text-slate-700 hover:border-[var(--brand-blue)] hover:text-[var(--brand-blue)] transition-all">Speak to an Agent</Link>
             </div>
           </motion.div>
@@ -117,7 +117,7 @@ export default function SpainEuropeService() {
         <div className="container mx-auto px-6">
            <h2 className="text-3xl md:text-5xl font-extrabold mb-8">Send Your Cargo to Europe</h2>
            <div className="flex flex-col sm:flex-row gap-6 justify-center">
-             <Link href="/quote" className="bg-[var(--brand-orange)] text-white font-bold py-4 px-10 rounded-xl hover:bg-orange-600 transition-all flex items-center justify-center gap-2">
+             <Link href="/booking" className="bg-[var(--brand-orange)] text-white font-bold py-4 px-10 rounded-xl hover:bg-orange-600 transition-all flex items-center justify-center gap-2">
                Get Custom Quote <Calculator className="w-5 h-5" />
              </Link>
              <Link href="/services" className="bg-white/10 backdrop-blur-md text-white font-bold py-4 px-10 rounded-xl hover:bg-white/20 transition-all">

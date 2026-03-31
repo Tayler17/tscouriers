@@ -354,14 +354,14 @@ export default function BookingPage() {
               </AnimatePresence>
 
               {/* Controls */}
-              {step < 5 && (
+              {step < 6 && (
                  <div className="flex justify-between items-center px-4 mt-12 bg-white/50 backdrop-blur-sm p-4 rounded-3xl border border-white">
                     <button onClick={prevStep} disabled={step === 1} className={`flex items-center gap-2 text-sm font-black uppercase tracking-widest transition-all ${step === 1 ? 'opacity-0 invisible' : 'text-slate-400 hover:text-[var(--brand-blue)]'}`}><ArrowLeft className="w-4 h-4" /> Previous</button>
                     <button 
                       onClick={nextStep} 
                       className="btn-primary px-16 py-4 rounded-2xl flex items-center gap-3 shadow-xl shadow-orange-500/10 active:scale-95 transition-all"
                     >
-                      {step === 1 ? 'Get Quote' : 'Continue'} <ArrowRight className="w-5 h-5" />
+                      {step === 1 ? 'Get Quote' : step === 5 ? 'Proceed to Payment' : 'Continue'} <ArrowRight className="w-5 h-5" />
                     </button>
                  </div>
               )}
