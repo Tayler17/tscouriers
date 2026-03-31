@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X, Globe, Phone, Package, Search } from 'lucide-react';
+import { Menu, X, Globe, Phone, Package, Search, MessageSquare } from 'lucide-react';
 import Logo from './Logo';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -37,6 +37,8 @@ export default function Navbar() {
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  const closeMenu = () => setIsOpen(false);
 
   return (
     <nav className={cn(
@@ -77,39 +79,46 @@ export default function Navbar() {
             <Search className="w-4 h-4" />
             <span>Track</span>
           </Link>
-          <Link href="/booking" className="btn-primary py-2 px-5 text-sm">
+          <Link href="/booking" className="btn-primary py-2 px-5 text-sm shadow-lg shadow-orange-500/10">
             Get Quote
           </Link>
         </div>
 
         {/* Mobile Menu Button */}
         <button 
-          className="lg:hidden p-2 text-slate-700" 
+          className="lg:hidden p-2 text-slate-700 hover:bg-slate-50 rounded-xl transition-colors" 
           onClick={() => setIsOpen(!isOpen)}
         >
-          {isOpen ? <X /> : <Menu />}
+          {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
       </div>
 
       {/* Mobile Menu */}
       {isOpen && (
-        <div className="lg:hidden absolute top-20 left-4 right-4 bg-white rounded-2xl shadow-xl border border-slate-100 p-6 flex flex-col gap-6 animate-in fade-in slide-in-from-top-4 duration-300">
+        <div className="lg:hidden absolute top-20 left-4 right-4 bg-white rounded-3xl shadow-2xl border border-slate-100 p-8 flex flex-col gap-6 animate-in fade-in slide-in-from-top-4 duration-300 z-50">
+          <div className="flex justify-between items-center mb-2">
+             <Logo />
+             <button onClick={closeMenu} className="p-2 bg-slate-50 rounded-full text-slate-400"><X className="w-5 h-5" /></button>
+          </div>
           {navLinks.map((link) => (
             <Link 
               key={link.name} 
               href={link.href}
-              className="text-lg font-semibold text-slate-800 border-b border-slate-50 pb-2"
-              onClick={() => setIsOpen(false)}
+              className="text-xl font-black text-slate-900 border-b border-slate-50 pb-4 italic uppercase tracking-tighter"
+              onClick={closeMenu}
             >
-              {link.name}
+               {lang === 'EN' ? link.name : link.name}
             </Link>
           ))}
-          <div className="flex flex-col gap-4 mt-2">
-            <Link href="/login" className="btn-secondary text-center font-black uppercase text-sm">Login</Link>
-            <Link href="/booking" className="btn-primary text-center">Get a Quote</Link>
-            <Link href="/track" className="btn-secondary text-center flex items-center justify-center gap-2">
+          <div className="flex flex-col gap-4 mt-4">
+            <Link href="/login" onClick={closeMenu} className="btn-secondary text-center font-black uppercase text-sm py-4 rounded-2xl">Login Access</Link>
+            <Link href="/booking" onClick={closeMenu} className="btn-primary text-center py-4 rounded-2xl font-black uppercase text-sm">Get a Free Quote</Link>
+            <Link href="/track" onClick={closeMenu} className="bg-slate-50 text-slate-900 text-center flex items-center justify-center gap-3 py-4 rounded-2xl font-black uppercase text-xs border border-slate-100">
               <Search className="w-4 h-4" /> Track Shipment
             </Link>
+            <a href="https://wa.me/447700000000" onClick={closeMenu} className="bg-emerald-50 text-emerald-600 text-center flex items-center justify-center gap-3 py-4 rounded-2xl font-black uppercase text-xs border border-emerald-100 group">
+              <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" /> Chat with Us
+            </a>
           </div>
         </div>
       )}
