@@ -175,14 +175,14 @@ export default function ShipmentsPage() {
                           <td className="px-8 py-6 text-right">
                              <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                                 <Link 
-                                  href={`/shipments/${item.id}/label`}
+                                  href={`/admin/shipments/label?id=${item.id}`}
                                   className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-[var(--brand-orange)] hover:text-white transition-all shadow-sm group/btn"
                                   title="Print 4x6 Label"
                                 >
                                    <QrCode className="w-4 h-4" />
                                 </Link>
                                 <Link 
-                                  href={`/shipments/${item.id}/invoice`}
+                                  href={`/admin/shipments/invoice?id=${item.id}`}
                                   className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-[var(--brand-blue)] hover:text-white transition-all shadow-sm group/btn"
                                   title="Generate Invoice"
                                 >

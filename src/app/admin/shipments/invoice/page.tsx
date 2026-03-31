@@ -1,6 +1,7 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { 
   Printer, 
   ArrowLeft, 
@@ -36,9 +37,9 @@ const MOCK_SHIPMENT = {
   paymentMethod: 'Stripe / Visa'
 };
 
-export default function InvoicePage() {
-  const params = useParams();
-  const id = params.id as string;
+function InvoiceContent() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get('id') || 'TS-9011';
 
   return (
     <div className="min-h-screen bg-white p-10 print:p-0 flex flex-col items-center">
@@ -170,5 +171,13 @@ export default function InvoicePage() {
          </div>
       </div>
     </div>
+  );
+}
+
+export default function InvoicePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-black italic text-slate-400 uppercase tracking-widest">Loading Digital Invoice...</div>}>
+      <InvoiceContent />
+    </Suspense>
   );
 }

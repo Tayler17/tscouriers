@@ -161,7 +161,7 @@ export default function ContainersPage() {
                           <td className="px-8 py-6 text-right">
                              <div className="flex items-center justify-end gap-2">
                                 <Link 
-                                  href={`/admin/containers/${container.id}/manifest`}
+                                  href={`/admin/containers/manifest?id=${container.id}`}
                                   className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-100 hover:text-[var(--brand-blue)] transition-all group/btn"
                                   title="Print Manifest"
                                 >

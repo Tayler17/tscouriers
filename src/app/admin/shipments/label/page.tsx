@@ -1,6 +1,7 @@
 'use client';
 
-import { useParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { 
   Printer, 
   ArrowLeft, 
@@ -25,9 +26,9 @@ const MOCK_SHIPMENT = {
   instruction: 'Handle with extreme care. Keep dry.'
 };
 
-export default function LabelPage() {
-  const params = useParams();
-  const id = params.id as string;
+function LabelContent() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get('id') || 'TS-9011';
 
   return (
     <div className="min-h-screen bg-slate-100 p-10 print:bg-white print:p-0 flex flex-col items-center">
@@ -119,6 +120,14 @@ export default function LabelPage() {
       </div>
       <p className="mt-8 text-xs font-bold text-slate-400 print:hidden uppercase tracking-widest italic">Standard 4x6 Thermal Output Ready</p>
     </div>
+  );
+}
+
+export default function LabelPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-black italic text-slate-400 uppercase tracking-widest">Loading Label System...</div>}>
+      <LabelContent />
+    </Suspense>
   );
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
-import { useParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Suspense } from 'react';
 import { 
   Printer, 
   ArrowLeft, 
@@ -11,7 +12,7 @@ import {
   Anchor, 
   Plane,
   FileText,
-  ShieldCheck,
+  ShieldCheck, 
   Zap
 } from 'lucide-react';
 
@@ -37,10 +38,10 @@ const MOCK_MANIFEST_DATA = {
   ]
 };
 
-export default function ManifestPage() {
-  const params = useParams();
+function ManifestContent() {
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const containerId = params.id as string;
+  const containerId = searchParams.get('id') || 'CONT-4091';
 
   const handlePrint = () => {
     window.print();
@@ -192,5 +193,13 @@ export default function ManifestPage() {
          </div>
       </div>
     </div>
+  );
+}
+
+export default function ManifestPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-black italic text-slate-400 uppercase tracking-widest">Loading Digital Manifest...</div>}>
+      <ManifestContent />
+    </Suspense>
   );
 }
