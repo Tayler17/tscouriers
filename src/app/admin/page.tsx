@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import AdminSidebar from '@/components/AdminSidebar';
 import Link from 'next/link';
+import { useAuth } from '@/context/AuthContext';
 
 const MOCK_BOOKINGS = [
   { id: 'TS-7821', customer: 'Ricardo Peña', route: 'London ➔ SDQ', date: '28 Mar 2026', status: 'In Warehouse', type: 'Barrel' },
@@ -37,6 +38,7 @@ const STATS = [
 
 export default function AdminPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const { user } = useAuth();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -59,7 +61,9 @@ export default function AdminPage() {
         <header className="flex justify-between items-center bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100">
            <div>
               <h1 className="text-3xl font-black text-slate-900 tracking-tight italic">Logistics <span className="text-[var(--brand-orange)] font-black">Control</span></h1>
-              <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Welcome back, Admin</p>
+              <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">
+                 Welcome back, {user?.name || 'Admin'}
+              </p>
            </div>
            <div className="flex items-center gap-4">
               <div className="relative">
@@ -102,34 +106,38 @@ export default function AdminPage() {
            ))}
         </div>
 
-        {/* Management Portals - Quick Access */}
+        {/* Management Portals - Quick Access - Filtered by Permissions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-           <Link href="/admin/accounting" className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-2xl transition-all group relative overflow-hidden">
-              <div className="absolute right-0 top-0 w-32 h-32 bg-emerald-50 opacity-50 -translate-y-12 translate-x-12 rounded-full group-hover:scale-150 transition-transform duration-700" />
-              <div className="flex items-center gap-6 relative z-10">
-                 <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-3xl flex items-center justify-center shadow-inner group-hover:bg-emerald-500 group-hover:text-white transition-all">
-                    <TrendingUp className="w-8 h-8" />
+           {user?.permissions.canAccessAccounting && (
+              <Link href="/admin/accounting" className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-2xl transition-all group relative overflow-hidden">
+                 <div className="absolute right-0 top-0 w-32 h-32 bg-emerald-50 opacity-50 -translate-y-12 translate-x-12 rounded-full group-hover:scale-150 transition-transform duration-700" />
+                 <div className="flex items-center gap-6 relative z-10">
+                    <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-3xl flex items-center justify-center shadow-inner group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                       <TrendingUp className="w-8 h-8" />
+                    </div>
+                    <div>
+                       <h4 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">Accounting <span className="text-emerald-500">& Finance</span></h4>
+                       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Manage revenue, invoices & payouts</p>
+                    </div>
+                    <ArrowUpRight className="ml-auto w-6 h-6 text-slate-200 group-hover:text-emerald-500" />
                  </div>
-                 <div>
-                    <h4 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">Accounting <span className="text-emerald-500">& Finance</span></h4>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Manage revenue, invoices & payouts</p>
+              </Link>
+           )}
+           {user?.permissions.canAccessHR && (
+              <Link href="/admin/hr" className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-2xl transition-all group relative overflow-hidden">
+                 <div className="absolute right-0 top-0 w-32 h-32 bg-blue-50 opacity-50 -translate-y-12 translate-x-12 rounded-full group-hover:scale-150 transition-transform duration-700" />
+                 <div className="flex items-center gap-6 relative z-10">
+                    <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-3xl flex items-center justify-center shadow-inner group-hover:bg-blue-500 group-hover:text-white transition-all">
+                       <Users className="w-8 h-8" />
+                    </div>
+                    <div>
+                       <h4 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">Human <span className="text-blue-500">Resources</span></h4>
+                       <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Personnel directory & payroll management</p>
+                    </div>
+                    <ArrowUpRight className="ml-auto w-6 h-6 text-slate-200 group-hover:text-blue-500" />
                  </div>
-                 <ArrowUpRight className="ml-auto w-6 h-6 text-slate-200 group-hover:text-emerald-500" />
-              </div>
-           </Link>
-           <Link href="/admin/hr" className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm hover:shadow-2xl transition-all group relative overflow-hidden">
-              <div className="absolute right-0 top-0 w-32 h-32 bg-blue-50 opacity-50 -translate-y-12 translate-x-12 rounded-full group-hover:scale-150 transition-transform duration-700" />
-              <div className="flex items-center gap-6 relative z-10">
-                 <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-3xl flex items-center justify-center shadow-inner group-hover:bg-blue-500 group-hover:text-white transition-all">
-                    <Users className="w-8 h-8" />
-                 </div>
-                 <div>
-                    <h4 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">Human <span className="text-blue-500">Resources</span></h4>
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Personnel directory & payroll management</p>
-                 </div>
-                 <ArrowUpRight className="ml-auto w-6 h-6 text-slate-200 group-hover:text-blue-500" />
-              </div>
-           </Link>
+              </Link>
+           )}
         </div>
 
         {/* Recent Bookings Table Section */}

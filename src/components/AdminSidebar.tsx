@@ -17,31 +17,41 @@ import {
   UserCheck,
   Building2,
   DollarSign,
-  Layers
+  Layers,
+  ShieldCheck
 } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth, UserPermissions } from '@/context/AuthContext';
 
 export default function AdminSidebar() {
   const pathname = usePathname();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const { user, logout } = useAuth();
 
   const menuItems = [
-    { name: 'Dashboard', icon: LayoutDashboard, href: '/admin' },
-    { name: 'Routes', icon: Route, href: '/admin/routes' },
-    { name: 'Drivers', icon: UserCheck, href: '/admin/drivers' },
-    { name: 'Branches', icon: Building2, href: '/admin/branches' },
-    { name: 'Address Book', icon: Users, href: '/admin/address-book' },
-    { name: 'Import/Export', icon: Layers, href: '/admin/import-export' },
-    { name: 'Rates', icon: DollarSign, href: '/admin/rates' },
-    { name: 'Shipments', icon: Truck, href: '/admin/shipments' },
-    { name: 'Containers', icon: Package, href: '/admin/containers' },
-    { name: 'Quotes', icon: FileText, href: '/admin/quotes' },
-    { name: 'Materials', icon: Package, href: '/admin/materials' },
-    { name: 'Analytics', icon: BarChart3, href: '/admin/analytics' },
-    { name: 'Accounting', icon: DollarSign, href: '/admin/accounting' },
-    { name: 'HR Management', icon: Users, href: '/admin/hr' },
-    { name: 'Settings', icon: Settings, href: '/admin/settings' },
+    { name: 'Dashboard', icon: LayoutDashboard, href: '/admin', permission: null },
+    { name: 'Shipments', icon: Truck, href: '/admin/shipments', permission: 'canAccessShipments' },
+    { name: 'Containers', icon: Package, href: '/admin/containers', permission: 'canAccessContainers' },
+    { name: 'Routes', icon: Route, href: '/admin/routes', permission: 'canAccessShipments' },
+    { name: 'Drivers', icon: UserCheck, href: '/admin/drivers', permission: 'canAccessShipments' },
+    { name: 'Branches', icon: Building2, href: '/admin/branches', permission: 'canAccessSettings' },
+    { name: 'Address Book', icon: Users, href: '/admin/address-book', permission: 'canAccessShipments' },
+    { name: 'Import/Export', icon: Layers, href: '/admin/import-export', permission: 'canAccessShipments' },
+    { name: 'Rates', icon: DollarSign, href: '/admin/rates', permission: 'canAccessAccounting' },
+    { name: 'Quotes', icon: FileText, href: '/admin/quotes', permission: 'canAccessShipments' },
+    { name: 'Materials', icon: Package, href: '/admin/materials', permission: 'canAccessShipments' },
+    { name: 'Analytics', icon: BarChart3, href: '/admin/analytics', permission: 'canAccessAnalytics' },
+    { name: 'Accounting', icon: DollarSign, href: '/admin/accounting', permission: 'canAccessAccounting' },
+    { name: 'HR Management', icon: Users, href: '/admin/hr', permission: 'canAccessHR' },
+    { name: 'User Management', icon: ShieldCheck, href: '/admin/users', permission: 'canAccessUsers' },
+    { name: 'Settings', icon: Settings, href: '/admin/settings', permission: 'canAccessSettings' },
   ];
+
+  const filteredMenu = menuItems.filter(item => {
+    if (!item.permission) return true;
+    if (!user) return false;
+    return user.permissions[item.permission as keyof UserPermissions];
+  });
 
   return (
     <aside className={`fixed left-0 top-0 h-screen bg-slate-950 text-slate-400 transition-all duration-300 z-50 flex flex-col ${isCollapsed ? 'w-20' : 'w-72'}`}>
@@ -62,8 +72,8 @@ export default function AdminSidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-grow p-4 space-y-2 mt-6">
-        {menuItems.map((item) => {
+      <nav className="flex-grow p-4 space-y-2 mt-6 overflow-y-auto custom-scrollbar-dark">
+        {filteredMenu.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link 
@@ -80,11 +90,28 @@ export default function AdminSidebar() {
 
       {/* Bottom Profile / Logout */}
       <div className="p-6 border-t border-white/5">
-         <button className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl hover:bg-red-500/10 hover:text-red-400 transition-all text-slate-500">
+         <div className="mb-4 px-4">
+            {!isCollapsed && user && (
+               <div className="space-y-1">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{user.role}</p>
+                  <p className="text-xs font-bold text-white truncate">{user.name}</p>
+               </div>
+            )}
+         </div>
+         <button 
+           onClick={() => logout()}
+           className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl hover:bg-red-500/10 hover:text-red-400 transition-all text-slate-500"
+         >
             <LogOut className="w-5 h-5" />
             {!isCollapsed && <span className="text-sm font-bold tracking-tight">Logout</span>}
          </button>
       </div>
+
+      <style jsx>{`
+        .custom-scrollbar-dark::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar-dark::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar-dark::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
+      `}</style>
     </aside>
   );
 }
