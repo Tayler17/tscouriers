@@ -2,22 +2,23 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ArrowRight, 
-  ArrowLeft, 
-  MapPin, 
-  Package, 
-  Truck, 
-  Calendar, 
-  User, 
-  CheckCircle2, 
-  Box, 
-  Archive, 
-  Layout, 
+import {
+  ArrowRight,
+  ArrowLeft,
+  MapPin,
+  Package,
+  Truck,
+  Calendar,
+  User,
+  CheckCircle2,
+  Box,
+  Archive,
+  Layout,
   HardDrive,
   Phone
 } from 'lucide-react';
 import Link from 'next/link';
+import { supabase } from '@/lib/supabase';
 
 const packageTypes = [
   { id: 'box', name: 'Boxes', icon: Box },
@@ -65,6 +66,7 @@ export default function QuotePage() {
     notes: ''
   });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const nextStep = () => setStep(s => Math.min(s + 1, 5));
   const prevStep = () => setStep(s => Math.max(s - 1, 1));
@@ -292,11 +294,28 @@ export default function QuotePage() {
                          className="w-full pl-12 pr-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none" 
                        />
                     </div>
-                    <button 
-                      onClick={() => setSubmitted(true)}
-                      className="btn-primary w-full py-5 text-lg mt-4 shadow-orange-500/20 shadow-xl"
+                    <button
+                      disabled={submitting || !formData.name}
+                      onClick={async () => {
+                        setSubmitting(true);
+                        const id = `QT-${Date.now().toString().slice(-6)}`;
+                        const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                        await supabase.from('quotes').insert({
+                          id,
+                          customer: formData.name,
+                          origin: formData.origin || 'London, UK',
+                          destination: formData.destination || 'Santo Domingo, DR',
+                          weight: `${formData.quantity}x ${formData.weight || formData.packageType}`,
+                          service: formData.packageType === 'full-van' || formData.packageType === 'container' ? 'Full Container' : 'Sea Freight',
+                          status: 'Pending',
+                          date: today,
+                        });
+                        setSubmitting(false);
+                        setSubmitted(true);
+                      }}
+                      className="btn-primary w-full py-5 text-lg mt-4 shadow-orange-500/20 shadow-xl disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                       Get My Custom Quote
+                      {submitting ? 'Submitting...' : 'Get My Custom Quote'}
                     </button>
                     <p className="text-[10px] text-slate-400 mt-4">By requesting a quote, you agree to our terms and community shipping guidelines.</p>
                   </div>

@@ -24,7 +24,7 @@ export default function LocalCourierService() {
               Fast, professional, and scalable transport services across London and to major UK cities. We specialize in heavy items, furniture, and business-to-business logistics.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
-               <Link href="/quote" className="btn-primary flex items-center justify-center gap-2">Book Local Pickup <Truck className="w-5 h-5" /></Link>
+               <Link href="/booking" className="btn-primary flex items-center justify-center gap-2">Book Local Pickup <Truck className="w-5 h-5" /></Link>
                <Link href="/contact" className="btn-secondary px-8">Contact Our Fleet</Link>
             </div>
             
@@ -125,7 +125,7 @@ export default function LocalCourierService() {
          <div className="container mx-auto px-6">
             <h2 className="text-4xl md:text-6xl font-extrabold mb-8 italic">Trust Your Fleet.</h2>
             <p className="text-orange-50 text-xl mb-12 max-w-2xl mx-auto italic">Scale your business or move your items with London’s most reliable transport network.</p>
-            <Link href="/quote" className="inline-block bg-[var(--brand-blue)] text-white font-bold py-5 px-16 rounded-2xl text-xl hover:scale-105 transition-all shadow-2xl">Start a Booking Now</Link>
+            <Link href="/booking" className="inline-block bg-[var(--brand-blue)] text-white font-bold py-5 px-16 rounded-2xl text-xl hover:scale-105 transition-all shadow-2xl">Start a Booking Now</Link>
          </div>
       </section>
     </main>

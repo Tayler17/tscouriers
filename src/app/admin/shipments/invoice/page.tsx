@@ -1,45 +1,62 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
-import { 
-  Printer, 
-  ArrowLeft, 
-  Globe, 
-  Wallet, 
-  FileText, 
-  ShieldCheck, 
+import { Suspense, useEffect, useState } from 'react';
+import {
+  Printer,
+  ArrowLeft,
+  Globe,
+  FileText,
+  ShieldCheck,
   Zap,
-  Building2,
-  Calendar,
   User,
   Package
 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
-const MOCK_SHIPMENT = {
-  id: 'TS-9011',
-  customer: 'Carlos Ruiz',
-  email: 'carlos.r@gmail.com',
-  phone: '+44 7911 123456',
-  destination: 'Santo Domingo, DR',
-  origin: 'London, UK',
-  date: '28 Mar 2026',
-  items: [
-    { type: 'Standard Barrel', qty: 2, unitPrice: 120, total: 240 },
-    { type: 'Large Box', qty: 3, unitPrice: 45, total: 135 },
-    { type: 'Medium Box', qty: 1, unitPrice: 30, total: 30 },
-    { type: 'Insurance (Premium)', qty: 1, unitPrice: 25, total: 25 },
-  ],
-  subtotal: 430,
-  tax: 0,
-  total: 430,
-  paymentStatus: 'PAID',
-  paymentMethod: 'Stripe / Visa'
-};
+interface Shipment {
+  id: string;
+  customer: string;
+  destination: string;
+  type: string;
+  weight: string;
+  status: string;
+  date: string;
+  items?: { type: string; qty: number; unitPrice: number; total: number }[];
+}
 
 function InvoiceContent() {
   const searchParams = useSearchParams();
-  const id = searchParams.get('id') || 'TS-9011';
+  const id = searchParams.get('id') || '';
+  const [shipment, setShipment] = useState<Shipment | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) { setLoading(false); return; }
+    supabase.from('shipments').select('*').eq('id', id).single().then(({ data }) => {
+      setShipment(data as Shipment);
+      setLoading(false);
+    });
+  }, [id]);
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center font-black italic text-slate-400 uppercase tracking-widest">
+      Loading Invoice...
+    </div>
+  );
+
+  if (!shipment) return (
+    <div className="min-h-screen flex items-center justify-center flex-col gap-4">
+      <p className="font-black italic text-slate-400 uppercase tracking-widest">Shipment not found: {id}</p>
+      <button className="btn-primary py-3 px-6 rounded-2xl text-sm" onClick={() => window.history.back()}>Go Back</button>
+    </div>
+  );
+
+  const items = shipment.items && shipment.items.length > 0
+    ? shipment.items
+    : [{ type: shipment.type, qty: 1, unitPrice: 0, total: 0 }];
+
+  const total = items.reduce((sum, i) => sum + (i.total || 0), 0);
 
   return (
     <div className="min-h-screen bg-white p-10 print:p-0 flex flex-col items-center">
@@ -55,7 +72,7 @@ function InvoiceContent() {
 
       {/* Invoice Document */}
       <div className="w-full max-w-4xl bg-white p-16 border border-slate-100 shadow-2xl print:shadow-none print:border-none print:p-8">
-         
+
          {/* Top Header */}
          <div className="flex justify-between items-start border-b-[4px] border-slate-900 pb-12 mb-12">
             <div>
@@ -78,10 +95,10 @@ function InvoiceContent() {
             <div className="text-right">
                <div className="bg-slate-950 text-white px-8 py-5 rounded-[2rem] inline-block mb-4">
                   <p className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-400 mb-1 leading-none italic">Invoicing Reference</p>
-                  <h2 className="text-3xl font-black italic tracking-tighter uppercase">{id}</h2>
+                  <h2 className="text-3xl font-black italic tracking-tighter uppercase">{shipment.id}</h2>
                </div>
                <div className="flex flex-col gap-1 items-end">
-                  <span className="text-xs font-black text-slate-900 uppercase italic underline decoration-2">Date Exported: {MOCK_SHIPMENT.date}</span>
+                  <span className="text-xs font-black text-slate-900 uppercase italic underline decoration-2">Date: {shipment.date}</span>
                   <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-widest">Auth: TSC-INV-SEC-44</span>
                </div>
             </div>
@@ -92,27 +109,28 @@ function InvoiceContent() {
             <div className="bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100 relative overflow-hidden">
                <User className="absolute -right-4 -bottom-4 w-24 h-24 text-slate-200 opacity-50" />
                <p className="text-[10px] font-black italic uppercase text-slate-400 mb-4 underline decoration-[var(--brand-orange)] decoration-2">Billing & Consignee Info</p>
-               <h3 className="text-xl font-black text-slate-900 italic uppercase mb-2 tracking-tighter leading-none">{MOCK_SHIPMENT.customer}</h3>
+               <h3 className="text-xl font-black text-slate-900 italic uppercase mb-2 tracking-tighter leading-none">{shipment.customer}</h3>
                <div className="space-y-1 text-xs font-bold text-slate-500 uppercase italic">
-                  <p>{MOCK_SHIPMENT.email}</p>
-                  <p>{MOCK_SHIPMENT.phone}</p>
-                  <p className="mt-4 text-[var(--brand-blue)] font-black">Destination: {MOCK_SHIPMENT.destination}</p>
+                  <p className="mt-4 text-[var(--brand-blue)] font-black">Destination: {shipment.destination}</p>
+                  <p>Weight: {shipment.weight}</p>
                </div>
             </div>
             <div className="p-8 border-2 border-slate-100 rounded-[2.5rem] flex flex-col justify-center">
-               <p className="text-[10px] font-black italic uppercase text-slate-400 mb-4">Payment Summary</p>
+               <p className="text-[10px] font-black italic uppercase text-slate-400 mb-4">Shipment Summary</p>
                <div className="space-y-3">
                   <div className="flex justify-between items-center text-sm font-black italic">
                      <span className="text-slate-400">Total Charged</span>
-                     <span className="text-2xl text-[var(--brand-orange)] underline decoration-4 underline-offset-4">£{MOCK_SHIPMENT.total}.00</span>
+                     <span className="text-2xl text-[var(--brand-orange)] underline decoration-4 underline-offset-4">
+                       {total > 0 ? `£${total}.00` : 'On Account'}
+                     </span>
                   </div>
                   <div className="flex justify-between items-center">
-                     <span className="text-[10px] font-black uppercase text-slate-400 italic">Method</span>
-                     <span className="text-[10px] font-black uppercase text-slate-900 italic">{MOCK_SHIPMENT.paymentMethod}</span>
+                     <span className="text-[10px] font-black uppercase text-slate-400 italic">Cargo Type</span>
+                     <span className="text-[10px] font-black uppercase text-slate-900 italic">{shipment.type}</span>
                   </div>
                   <div className="flex justify-between items-center">
                      <span className="text-[10px] font-black uppercase text-slate-400 italic">Status</span>
-                     <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black uppercase border border-emerald-100">{MOCK_SHIPMENT.paymentStatus}</span>
+                     <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black uppercase border border-emerald-100">{shipment.status}</span>
                   </div>
                </div>
             </div>
@@ -134,19 +152,21 @@ function InvoiceContent() {
                      </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 italic">
-                     {MOCK_SHIPMENT.items.map((item, idx) => (
+                     {items.map((item, idx) => (
                         <tr key={idx} className="group">
                            <td className="px-6 py-6 font-black text-slate-900">{item.type}</td>
                            <td className="px-6 py-6 font-bold text-slate-500">{item.qty} units</td>
-                           <td className="px-6 py-6 font-bold text-slate-500">£{item.unitPrice}.00</td>
-                           <td className="px-6 py-6 text-right font-black text-slate-900 italic">£{item.total}.00</td>
+                           <td className="px-6 py-6 font-bold text-slate-500">{item.unitPrice > 0 ? `£${item.unitPrice}.00` : '—'}</td>
+                           <td className="px-6 py-6 text-right font-black text-slate-900 italic">{item.total > 0 ? `£${item.total}.00` : '—'}</td>
                         </tr>
                      ))}
                   </tbody>
                   <tfoot>
                      <tr className="border-t-[4px] border-slate-900 bg-slate-50/50">
                         <td colSpan={3} className="px-6 py-8 text-right font-black italic uppercase text-xs tracking-tighter">Gross Commercial Total Payable:</td>
-                        <td className="px-6 py-8 text-right font-black text-2xl text-slate-900 italic underline decoration-[var(--brand-orange)] decoration-4">£{MOCK_SHIPMENT.total}.00</td>
+                        <td className="px-6 py-8 text-right font-black text-2xl text-slate-900 italic underline decoration-[var(--brand-orange)] decoration-4">
+                          {total > 0 ? `£${total}.00` : 'On Account'}
+                        </td>
                      </tr>
                   </tfoot>
                </table>

@@ -14,98 +14,96 @@ import {
   History,
   Info,
   ChevronDown,
-  MessageSquare
+  MessageSquare,
+  Ship,
+  Anchor
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
+import { LayoutDashboard, ChevronRight as CR } from 'lucide-react';
 
-// Default Data (Fallback if localStorage is empty)
 const DEFAULT_UPDATES = [
-  { tag: "MARCH 2026 DEPARTURES", title: "Vessel to Dominican Republic", desc: "Departing soon. Final collection day: Sunday 22nd March.", urgent: true },
-  { tag: "NEW EXPANDED UK ROUTES", title: "Regional Courier Service", desc: "Weekly routes now confirmed from London to Manchester and Birmingham.", urgent: false }
+  { tag: "DEPARTURES", title: "Vessel to Dominican Republic", description: "Contact us for the next available departure date.", more_info: "Our monthly vessel to Rio Haina accepts cargo door-to-door. Transit time: 6-8 weeks.", urgent: true },
+  { tag: "LONDON COURIER", title: "Same-Day Collection Available", description: "We cover SE1, E1, W1 and surrounding areas.", more_info: "Weekly routes confirmed within London zones for packages heading to DR.", urgent: false }
 ];
 
 const DEFAULT_FAQS = [
-  { q: "How long does shipping to Dominican Republic take?", a: "Estimated transit time for sea freight is 6 to 8 weeks door-to-door." },
+  { q: "How long does shipping to Dominican Republic take?", a: "Estimated transit time for sea freight is 6 to 8 weeks door-to-door from London to Rio Haina." },
+  { q: "Do you offer courier services within London?", a: "Yes, we specialize in London courier collections, particularly on Sundays and Thursdays." },
   { q: "Do the prices include customs in the Dominican Republic?", a: "Yes, our door-to-door service to the DR typically includes customs management and basic fees." },
   { q: "When do you collect parcels in London?", a: "Our main collection days are Sundays. Thursdays may also be available upon pre-confirmation." }
 ];
 
 export default function Home() {
+  const { user } = useAuth();
+  const router = useRouter();
   const [updates, setUpdates] = useState(DEFAULT_UPDATES);
   const [faqs, setFaqs] = useState(DEFAULT_FAQS);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
+  const [activeUpdate, setActiveUpdate] = useState<number | null>(null);
+
+  // Redirect logged-in users to their dashboard automatically
+  useEffect(() => {
+    if (user) {
+      const dest = user.role === 'ADMIN' ? '/admin' : user.role === 'DRIVER' ? '/driver' : '/customer';
+      router.replace(dest);
+    }
+  }, [user]);
 
   useEffect(() => {
-    // Load dynamic news
-    const savedNews = localStorage.getItem('ts_news_db');
-    if (savedNews) {
-      setUpdates(JSON.parse(savedNews));
-    }
-
-    // Load dynamic faqs
-    const savedFaqs = localStorage.getItem('ts_faqs_db');
-    if (savedFaqs) {
-      setFaqs(JSON.parse(savedFaqs));
-    }
+    supabase.from('news').select('*').order('created_at', { ascending: false }).then(({ data }) => {
+      if (data && data.length > 0) setUpdates(data as typeof DEFAULT_UPDATES);
+    });
+    supabase.from('faqs').select('*').order('sort_order').then(({ data }) => {
+      if (data && data.length > 0) setFaqs(data as typeof DEFAULT_FAQS);
+    });
   }, []);
 
   return (
     <main className="min-h-screen">
       {/* Hero Section */}
-      <section className="relative h-[95vh] flex items-center pt-20 overflow-hidden bg-slate-900">
-        {/* Abstract Background Elements */}
-        <div className="absolute top-0 right-0 w-1/2 h-full bg-[var(--brand-blue)]/10 skew-x-12 translate-x-24" />
-        <div className="absolute top-0 right-0 w-1/2 h-full">
-           <Image 
-             src="/ship.png" 
-             alt="Vessel" 
-             fill 
-             className="object-contain object-right opacity-40 translate-x-12 scale-110 pointer-events-none" 
-             priority
-           />
+      <section className="relative min-h-[100svh] flex items-center pt-20 pb-8 overflow-hidden bg-slate-50">
+        <div className="absolute top-0 right-0 w-1/2 h-full bg-[var(--brand-blue)]/5 skew-x-12 translate-x-24" />
+        <div className="absolute inset-0 z-0">
+          <Image src="/warehouse.png" alt="Modern Logistics Hub" fill className="object-cover opacity-20 grayscale-[0.5]" priority />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-50 via-slate-50/95 to-transparent z-10" />
         </div>
-        
-        <div className="container mx-auto px-6 relative z-10">
-          <motion.div 
-            initial={{ opacity: 0, x: -30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8 }}
-            className="max-w-3xl"
-          >
-            <div className="flex items-center gap-2 mb-6">
-               <span className="w-12 h-[2px] bg-[var(--brand-orange)]" />
-               <span className="text-[var(--brand-orange)] font-black uppercase tracking-[0.3em] text-xs underline decoration-2 underline-offset-4">Premium Logistics</span>
+
+        <div className="container mx-auto px-5 md:px-6 relative z-10 w-full">
+          <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.8 }} className="max-w-3xl">
+            <div className="flex items-center gap-2 mb-5">
+              <span className="w-8 md:w-12 h-[2px] bg-[var(--brand-orange)]" />
+              <span className="text-[var(--brand-orange)] font-black uppercase tracking-[0.2em] md:tracking-[0.3em] text-[9px] md:text-[10px]">Premium Logistics</span>
             </div>
-            <h1 className="text-6xl md:text-8xl font-black text-white leading-[0.9] tracking-tighter mb-8 italic uppercase text-shadow-lg">
-              Global <br /> Shipping <br /> <span className="text-[var(--brand-orange)]">Redefined.</span>
+            <h1 className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-black text-[var(--brand-blue)] leading-[0.9] tracking-tighter mb-6 md:mb-10 italic uppercase">
+              Global <br /> Shipping <br />
+              <span className="text-[var(--brand-orange)]">Redefined.</span>
             </h1>
-            <p className="text-xl text-slate-400 mb-10 max-w-xl font-medium leading-relaxed">
-              Door-to-door courier services from the UK to the Dominican Republic and Europe. Secure, reliable, and faster than ever.
+            <p className="text-base md:text-xl text-slate-500 mb-8 md:mb-12 max-w-xl font-medium leading-relaxed">
+              Specialized door-to-door courier services from London to the Dominican Republic. Secure, reliable, and faster than ever.
             </p>
-            <div className="flex flex-wrap gap-5">
-              <Link href="/booking" className="btn-primary group flex items-center gap-3 px-10 py-5 rounded-2xl shadow-2xl shadow-orange-500/20 active:scale-95 transition-all">
-                Get a Quote <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-5">
+              <Link href="/booking" className="btn-primary group flex items-center justify-center gap-3 px-7 md:px-10 py-4 md:py-5 rounded-2xl shadow-2xl shadow-orange-500/20 active:scale-95 transition-all text-base md:text-lg">
+                Book Now <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Link>
-              <Link href="/track" className="bg-white/5 hover:bg-white/10 backdrop-blur-md text-white border border-white/10 font-bold py-5 px-10 rounded-2xl transition-all active:scale-95">
+              <Link href="/track" className="bg-white hover:bg-slate-50 text-[var(--brand-blue)] border-2 border-slate-200 font-bold py-4 md:py-5 px-7 md:px-10 rounded-2xl transition-all active:scale-95 text-base md:text-lg flex items-center justify-center gap-2">
                 Track Shipment
               </Link>
             </div>
-          </motion.div>
-        </div>
 
-        {/* Floating Stats */}
-        <div className="absolute bottom-12 left-0 w-full">
-          <div className="container mx-auto px-6">
-            <div className="flex gap-12 text-white/40">
-               <div><p className="text-2xl font-black text-white italic">24/7</p><p className="text-[10px] font-bold uppercase tracking-widest">Support</p></div>
-               <div className="w-[1px] h-10 bg-white/10" />
-               <div><p className="text-2xl font-black text-white italic">100%</p><p className="text-[10px] font-bold uppercase tracking-widest">Insurance</p></div>
-               <div className="w-[1px] h-10 bg-white/10" />
-               <div><p className="text-2xl font-black text-white italic">Weekly</p><p className="text-[10px] font-bold uppercase tracking-widest">Departures</p></div>
+            {/* Stats — inline on mobile */}
+            <div className="flex gap-6 md:gap-12 mt-10 md:mt-16 text-slate-400">
+              <div><p className="text-xl md:text-2xl font-black text-[var(--brand-blue)] italic">24/7</p><p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Support</p></div>
+              <div className="w-[1px] h-10 bg-slate-200" />
+              <div><p className="text-xl md:text-2xl font-black text-[var(--brand-blue)] italic">100%</p><p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Insurance</p></div>
+              <div className="w-[1px] h-10 bg-slate-200" />
+              <div><p className="text-xl md:text-2xl font-black text-[var(--brand-blue)] italic">Weekly</p><p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Departures</p></div>
             </div>
-          </div>
+          </motion.div>
         </div>
       </section>
 
@@ -138,15 +136,28 @@ export default function Home() {
                     {update.title}
                   </h3>
                   <p className={`text-sm font-medium leading-relaxed mb-10 italic ${update.urgent ? 'text-blue-100/70' : 'text-slate-500'}`}>
-                    {update.desc}
+                    {update.description}
                   </p>
+
+                  <motion.div
+                    initial={false}
+                    animate={{ height: activeUpdate === idx ? 'auto' : 0, opacity: activeUpdate === idx ? 1 : 0 }}
+                    className="overflow-hidden mb-6"
+                  >
+                    <p className={`text-xs font-bold p-4 rounded-2xl ${update.urgent ? 'bg-white/10 text-white' : 'bg-white border border-slate-100 text-slate-400'}`}>
+                      {update.more_info || "Contact us for more details about this notice."}
+                    </p>
+                  </motion.div>
                 </div>
-                <div className="flex items-center gap-3">
+                <button 
+                  onClick={() => setActiveUpdate(activeUpdate === idx ? null : idx)}
+                  className="flex items-center gap-3 w-full text-left outline-none"
+                >
                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${update.urgent ? 'bg-white/10 text-white group-hover:bg-[var(--brand-orange)]' : 'bg-white text-slate-400 group-hover:bg-[var(--brand-blue)] group-hover:text-white'}`}>
-                      <Info className="w-5 h-5" />
+                      <Info className={`w-5 h-5 transition-transform ${activeUpdate === idx ? 'rotate-180' : ''}`} />
                    </div>
-                   <span className="text-[10px] font-black uppercase tracking-widest">More Details</span>
-                </div>
+                   <span className="text-[10px] font-black uppercase tracking-widest">{activeUpdate === idx ? 'Close Details' : 'More Details'}</span>
+                </button>
               </motion.div>
             ))}
           </div>
@@ -157,24 +168,43 @@ export default function Home() {
       <section className="py-24 bg-slate-50">
         <div className="container mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-             <Link href="/dominican-republic" className="group relative bg-white p-12 rounded-[3.5rem] shadow-sm border border-slate-100 hover:shadow-2xl transition-all overflow-hidden flex flex-col items-center text-center">
-                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity"><Globe className="w-24 h-24" /></div>
-                <div className="w-16 h-16 bg-blue-50 text-[var(--brand-blue)] rounded-2xl flex items-center justify-center mb-8"><Package className="w-8 h-8" /></div>
-                <h3 className="text-3xl font-black text-[var(--brand-blue)] italic uppercase leading-none mb-4">DR Shipping</h3>
-                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2 group-hover:text-[var(--brand-orange)] transition-colors">Start Assistant <ArrowRight className="w-4 h-4" /></p>
-             </Link>
-             <Link href="/spain-europe" className="group relative bg-white p-12 rounded-[3.5rem] shadow-sm border border-slate-100 hover:shadow-2xl transition-all overflow-hidden flex flex-col items-center text-center">
-                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity"><Truck className="w-24 h-24" /></div>
-                <div className="w-16 h-16 bg-blue-50 text-[var(--brand-blue)] rounded-2xl flex items-center justify-center mb-8"><ChevronRight className="w-8 h-8" /></div>
-                <h3 className="text-3xl font-black text-[var(--brand-blue)] italic uppercase leading-none mb-4">Europe Route</h3>
-                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2 group-hover:text-[var(--brand-orange)] transition-colors">View Routes <ArrowRight className="w-4 h-4" /></p>
-             </Link>
-             <Link href="/track" className="group relative bg-white p-12 rounded-[3.5rem] shadow-sm border border-slate-100 hover:shadow-2xl transition-all overflow-hidden flex flex-col items-center text-center">
-                <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity"><History className="w-24 h-24" /></div>
-                <div className="w-16 h-16 bg-blue-50 text-[var(--brand-blue)] rounded-2xl flex items-center justify-center mb-8"><Timer className="w-8 h-8" /></div>
-                <h3 className="text-3xl font-black text-[var(--brand-blue)] italic uppercase leading-none mb-4">Live Tracking</h3>
-                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-2 flex items-center gap-2 group-hover:text-[var(--brand-orange)] transition-colors">Track Cargo <ArrowRight className="w-4 h-4" /></p>
-             </Link>
+
+            {/* DR Shipping — Orange */}
+            <Link href="/dominican-republic" className="group relative bg-[var(--brand-orange)] p-12 rounded-[3.5rem] shadow-xl shadow-orange-500/20 hover:shadow-2xl hover:shadow-orange-500/30 hover:-translate-y-2 transition-all overflow-hidden flex flex-col items-center text-center">
+              <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity"><Ship className="w-32 h-32 text-white" /></div>
+              <div className="w-20 h-20 bg-white/20 text-white rounded-3xl flex items-center justify-center mb-8 shadow-inner">
+                <Anchor className="w-10 h-10" />
+              </div>
+              <h3 className="text-3xl font-black text-white italic uppercase leading-none mb-4">DR Shipping</h3>
+              <p className="text-sm font-bold text-white/70 uppercase tracking-widest flex items-center gap-2 group-hover:text-white transition-colors">
+                Door-to-door Service <ArrowRight className="w-4 h-4" />
+              </p>
+            </Link>
+
+            {/* London Courier — Brand Blue */}
+            <Link href="/local-courier" className="group relative bg-[var(--brand-blue)] p-12 rounded-[3.5rem] shadow-xl shadow-blue-900/20 hover:shadow-2xl hover:shadow-blue-900/30 hover:-translate-y-2 transition-all overflow-hidden flex flex-col items-center text-center">
+              <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity"><Truck className="w-32 h-32 text-white" /></div>
+              <div className="w-20 h-20 bg-white/20 text-white rounded-3xl flex items-center justify-center mb-8 shadow-inner">
+                <MapPin className="w-10 h-10" />
+              </div>
+              <h3 className="text-3xl font-black text-white italic uppercase leading-none mb-4">London Courier</h3>
+              <p className="text-sm font-bold text-white/70 uppercase tracking-widest flex items-center gap-2 group-hover:text-white transition-colors">
+                Book Collection <ArrowRight className="w-4 h-4" />
+              </p>
+            </Link>
+
+            {/* Live Tracking — Dark Slate */}
+            <Link href="/track" className="group relative bg-slate-900 p-12 rounded-[3.5rem] shadow-xl shadow-slate-900/20 hover:shadow-2xl hover:shadow-slate-900/40 hover:-translate-y-2 transition-all overflow-hidden flex flex-col items-center text-center">
+              <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity"><History className="w-32 h-32 text-white" /></div>
+              <div className="w-20 h-20 bg-white/10 text-[var(--brand-orange)] rounded-3xl flex items-center justify-center mb-8 shadow-inner">
+                <Timer className="w-10 h-10" />
+              </div>
+              <h3 className="text-3xl font-black text-white italic uppercase leading-none mb-4">Live Tracking</h3>
+              <p className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 group-hover:text-[var(--brand-orange)] transition-colors">
+                Track Cargo <ArrowRight className="w-4 h-4" />
+              </p>
+            </Link>
+
           </div>
         </div>
       </section>
@@ -216,12 +246,6 @@ export default function Home() {
             </div>
          </div>
       </section>
-
-      <style jsx>{`
-        .text-shadow-lg {
-          text-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        }
-      `}</style>
     </main>
   );
 }

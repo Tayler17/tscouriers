@@ -14,26 +14,26 @@ export default function LoginPage() {
   const { login } = useAuth();
   const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsSubmitting(true);
 
-    const success = login(email, password);
-    
-    if (success) {
-      // Get the user again to check role for redirection
-      const savedUser = JSON.parse(localStorage.getItem('ts_auth_user') || '{}');
-      const role = savedUser.role;
+    const { success, user: loggedUser, error: loginError } = await login(email, password);
 
-      if (role === 'ADMIN' || role === 'STAFF') {
+    if (success && loggedUser) {
+      if (loggedUser.role === 'ADMIN' || loggedUser.role === 'STAFF') {
         router.push('/admin');
-      } else if (role === 'DRIVER') {
+      } else if (loggedUser.role === 'DRIVER') {
         router.push('/driver');
       } else {
         router.push('/customer');
       }
     } else {
-      setError('Invalid credentials. Please try admin@tscouriers.com');
+      setError(loginError ?? 'Invalid credentials. Check your email and password.');
+      setIsSubmitting(false);
     }
   };
 
@@ -48,10 +48,17 @@ export default function LoginPage() {
          <div className="md:w-56 bg-[var(--brand-blue)] p-10 text-white flex flex-col justify-between relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-12 translate-x-12" />
             <div className="relative z-10">
-               <ShieldCheck className="w-12 h-12 text-[var(--brand-orange)] mb-6 shadow-2xl" />
-               <h3 className="text-xl font-black italic uppercase tracking-tighter leading-tight">Identity <br /> Shield</h3>
+               {/* Logo — click to go home */}
+               <Link href="/" className="flex items-center gap-2 mb-8 group w-fit">
+                  <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+                     <Truck className="w-5 h-5 text-[var(--brand-blue)]" />
+                  </div>
+                  <span className="font-black text-base tracking-tighter uppercase italic leading-none">TS<br/><span className="text-[var(--brand-orange)] text-[10px] tracking-widest font-bold not-italic">COURIERS</span></span>
+               </Link>
+               <ShieldCheck className="w-10 h-10 text-[var(--brand-orange)] mb-4 opacity-80" />
+               <h3 className="text-lg font-black italic uppercase tracking-tighter leading-tight">Secure <br /> Sign In</h3>
             </div>
-            <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mt-12 italic opacity-60">Authentication Node v5.1</p>
+            <p className="text-[10px] font-bold text-blue-200 uppercase tracking-widest mt-12 italic opacity-50">TS Control Panel</p>
          </div>
 
          {/* Form */}
@@ -88,8 +95,8 @@ export default function LoginPage() {
                   <div className="relative">
                      <Lock className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
                      <input 
-                       type="password" 
-                       placeholder="Password (simulation)"
+                       type="password"
+                       placeholder="Password"
                        value={password}
                        onChange={(e) => setPassword(e.target.value)}
                        required
@@ -98,13 +105,13 @@ export default function LoginPage() {
                   </div>
                </div>
 
-               <button type="submit" className="btn-primary w-full py-5 rounded-2xl flex items-center justify-center gap-3 text-lg shadow-xl shadow-orange-500/20 group uppercase italic font-black">
-                  Authorize <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+               <button type="submit" disabled={isSubmitting} className="btn-primary w-full py-5 rounded-2xl flex items-center justify-center gap-3 text-lg shadow-xl shadow-orange-500/20 group uppercase italic font-black disabled:opacity-60 disabled:cursor-not-allowed">
+                  {isSubmitting ? 'Authenticating...' : 'Authorize'} <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                </button>
             </form>
 
             <div className="mt-8 text-center space-y-4">
-               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Default Admin: admin@tscouriers.com</p>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Use your registered email and password</p>
                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Global platform <Link href="/signup" className="text-[var(--brand-blue)] hover:underline">registration</Link></p>
             </div>
          </div>

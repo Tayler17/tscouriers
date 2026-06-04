@@ -2,12 +2,12 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  User, 
-  MapPin, 
-  Package, 
-  CheckCircle2, 
-  ArrowRight, 
+import {
+  User,
+  MapPin,
+  Package,
+  CheckCircle2,
+  ArrowRight,
   ArrowLeft,
   Truck,
   ShieldCheck,
@@ -22,11 +22,14 @@ import {
   ChevronDown,
   CreditCard,
   Check,
-  X
+  X,
+  Mail
 } from 'lucide-react';
 import Link from 'next/link';
 import { CATEGORIES, ITEMS, SERVICE_PLANS, SERVICE_FEATURES } from './constants';
 import StripePayment from '@/components/StripePayment';
+import BookingEmailPreview from '@/components/BookingEmailPreview';
+import { supabase } from '@/lib/supabase';
 
 export default function BookingPage() {
   const [step, setStep] = useState(1);
@@ -35,30 +38,172 @@ export default function BookingPage() {
   
   const [formData, setFormData] = useState({
     customer: { name: '', email: '', phone: '' },
-    collection: { 
+    collection: {
       name: '', email: '', phone: '', address: '', notes: '', isSameAsCustomer: false,
       parking: 'NO', floor: 'Door', steps: 'NO'
     },
-    delivery: { 
+    delivery: {
       name: '', email: '', phone: '', address: '', notes: '', isSameAsCustomer: false,
       parking: 'NO', floor: 'Door', steps: 'NO'
     },
     items: [] as { id: string, name: string, quantity: number, price: number }[],
     planId: 'standard',
-    dates: { collection: '30 Mar 2026', delivery: '31 Mar 2026' }
+    dates: { collection: '', delivery: '' }
   });
 
   const [dynamicPlans, setDynamicPlans] = useState(SERVICE_PLANS);
 
-  // Load plans from localStorage if admin changed them
   useEffect(() => {
-    const savedPlans = localStorage.getItem('ts_service_plans');
-    if (savedPlans) {
-      setDynamicPlans(JSON.parse(savedPlans));
-    }
+    supabase.from('plan_settings').select('*').then(({ data }) => {
+      if (data && data.length > 0) {
+        setDynamicPlans(prev => prev.map(plan => {
+          const override = (data as { id: string; surcharge: number }[]).find(d => d.id === plan.id);
+          return override ? { ...plan, surcharge: override.surcharge } : plan;
+        }));
+      }
+    });
   }, []);
 
   const [submitted, setSubmitted] = useState(false);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [trackingId, setTrackingId] = useState('');
+  const [showPrintLabel, setShowPrintLabel] = useState(false);
+
+  // Generate next available collection dates (Sundays=0 and Thursdays=4)
+  const availablePickupDates = useMemo(() => {
+    const dates: { label: string; day: string; value: string }[] = [];
+    const d = new Date();
+    d.setDate(d.getDate() + 2); // min 2 days advance
+    while (dates.length < 6) {
+      const dow = d.getDay();
+      if (dow === 0 || dow === 4) {
+        dates.push({
+          label: d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }),
+          day:   d.toLocaleDateString('en-GB', { weekday: 'long' }),
+          value: d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        });
+      }
+      d.setDate(d.getDate() + 1);
+    }
+    return dates;
+  }, []);
+
+  const printLabel = () => {
+    const trackUrl = `${window.location.origin}/track?id=${trackingId}`;
+    const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(trackUrl)}&margin=4`;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><title>Shipping Label - ${trackingId}</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { font-family: Arial, sans-serif; margin: 0; padding: 24px; background: #f5f5f5; }
+      .label { border: 3px solid #000; padding: 20px; max-width: 480px; margin: 0 auto; background: #fff; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 12px; margin-bottom: 14px; }
+      .logo { font-size: 20px; font-weight: 900; text-transform: uppercase; letter-spacing: -1px; }
+      .logo span { color: #E85D04; }
+      .tracking-block { text-align: right; }
+      .tracking-id { font-size: 22px; font-weight: 900; letter-spacing: 2px; }
+      .route { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; border-bottom: 1px solid #ddd; padding-bottom: 12px; margin-bottom: 12px; }
+      .sm { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #999; margin-bottom: 2px; }
+      .val { font-size: 13px; font-weight: 700; }
+      .sub { font-size: 10px; color: #666; margin-top: 2px; }
+      .details { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; border-bottom: 1px solid #ddd; padding-bottom: 12px; margin-bottom: 12px; }
+      .bottom { display: flex; justify-content: space-between; align-items: center; }
+      .bottom-info { flex: 1; }
+    </style></head><body>
+    <div class="label">
+      <div class="header">
+        <div class="logo">TS <span>Couriers</span><br><span style="font-size:9px;font-weight:600;letter-spacing:2px;color:#666;">GLOBAL LOGISTICS</span></div>
+        <div class="tracking-block">
+          <div class="sm">Tracking ID</div>
+          <div class="tracking-id">${trackingId}</div>
+        </div>
+      </div>
+      <div class="route">
+        <div>
+          <div class="sm">From (Sender)</div>
+          <div class="val">${formData.customer.name || 'N/A'}</div>
+          <div class="sub">${formData.collection.address}</div>
+          <div class="sub">${formData.customer.phone}</div>
+        </div>
+        <div style="border-left:1px solid #ddd; padding-left:12px;">
+          <div class="sm">To (Beneficiary)</div>
+          <div class="val">${formData.delivery.name || 'N/A'}</div>
+          <div class="sub">${formData.delivery.address}</div>
+          <div class="sub">${formData.delivery.phone}</div>
+        </div>
+      </div>
+      <div class="details">
+        <div>
+          <div class="sm">Collection Date</div>
+          <div class="val">${formData.dates.collection || 'TBC'}</div>
+        </div>
+        <div>
+          <div class="sm">Service Plan</div>
+          <div class="val">${currentPlan.name}</div>
+        </div>
+        <div style="grid-column:span 2;">
+          <div class="sm">Contents</div>
+          <div class="val">${formData.items.map(i => `${i.quantity}x ${i.name}`).join(' · ') || 'General Cargo'}</div>
+        </div>
+        <div>
+          <div class="sm">Total</div>
+          <div class="val" style="color:#E85D04;">£${totalAmount.toFixed(2)}</div>
+        </div>
+      </div>
+      <div class="bottom">
+        <div class="bottom-info">
+          <div class="sm">Scan to Track</div>
+          <div style="font-size:9px;color:#666;margin-top:2px;">${trackUrl}</div>
+          <div style="margin-top:8px;font-size:8px;color:#aaa;">Printed: ${new Date().toLocaleString()}</div>
+        </div>
+        <img src="${qrSrc}" width="100" height="100" style="border:2px solid #000;padding:2px;" alt="QR" />
+      </div>
+    </div>
+    <script>
+      document.querySelector('img').onload = () => window.print();
+      setTimeout(() => window.print(), 2500);
+    </script></body></html>`);
+    win.document.close();
+  };
+
+  const saveBookingToSupabase = async () => {
+    const id = `TS-${Date.now().toString().slice(-6)}`;
+    const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const itemType = formData.items.length === 1 ? formData.items[0].name : formData.items.length > 1 ? 'Mixed Cargo' : 'General';
+
+    await Promise.all([
+      supabase.from('bookings').insert({
+        id,
+        customer: formData.customer.name || 'Guest',
+        customer_email: formData.customer.email || null,
+        customer_phone: formData.customer.phone || null,
+        route: `${formData.collection.address?.split(',')[0] || 'Origin'} → ${formData.delivery.address?.split(',')[0] || 'Destination'}`,
+        date: formData.dates.collection || today,
+        status: 'Pending Pickup',
+        type: itemType,
+        collection_address: formData.collection.address,
+        delivery_address: formData.delivery.address,
+        total_amount: totalAmount,
+        plan_id: formData.planId,
+      }),
+      supabase.from('shipments').insert({
+        id: `SHP-${Date.now().toString().slice(-6)}`,
+        customer: formData.customer.name || 'Guest',
+        destination: formData.delivery.address?.split(',')[0] || 'International',
+        origin: formData.collection.address?.split(',')[0] || 'London',
+        type: itemType,
+        weight: `${formData.items.reduce((a, i) => a + i.quantity, 0)} items`,
+        status: 'Pending Pickup',
+        date: today,
+        items: formData.items,
+      }),
+    ]);
+
+    setTrackingId(id);
+    return id;
+  };
 
   // Derived Values
   const selectedItemsCount = useMemo(() => formData.items.reduce((acc, i) => acc + i.quantity, 0), [formData.items]);
@@ -148,41 +293,29 @@ export default function BookingPage() {
            <div className="lg:col-span-8 space-y-8">
               <AnimatePresence mode="wait">
                  
-                 {/* STEP 1: SIMPLE ADDRESSES */}
+                 {/* STEP 1: ADDRESSES */}
                  {step === 1 && (
-                   <motion.div key="s1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-8">
-                      <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-10 space-y-12">
-                         <div className="text-center space-y-2 mb-4">
-                            <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Get a <span className="text-[var(--brand-orange)]">Quick Quote</span></h2>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Where should we pick up and deliver?</p>
+                   <motion.div key="s1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
+                      <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-10 space-y-10">
+                         <div className="text-center space-y-2 mb-2">
+                            <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Book Your <span className="text-[var(--brand-orange)]">Collection</span></h2>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Enter postcode or city — we handle the rest.</p>
                          </div>
-                         <div className="grid grid-cols-1 gap-10">
+                         <div className="grid grid-cols-1 gap-8">
                             <div className="relative group">
                                <div className="absolute -left-4 top-1/2 -translate-y-1/2 w-1.5 h-12 bg-[var(--brand-orange)] rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity" />
-                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block px-2">Pickup Address</label>
+                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block px-2">Collection Postcode / Address</label>
                                <div className="relative">
                                   <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-300" />
-                                  <input 
-                                    type="text" 
-                                    placeholder="Enter full pickup address (Street, City, Postcode)" 
-                                    value={formData.collection.address} 
-                                    onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, address: e.target.value } }))} 
-                                    className="input-booking py-6 pl-16 text-lg" 
-                                  />
+                                  <input type="text" placeholder="e.g. E1 6RF or 14 High Street, London" value={formData.collection.address} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, address: e.target.value } }))} className="input-booking py-6 pl-16 text-lg" />
                                </div>
                             </div>
                             <div className="relative group">
                                <div className="absolute -left-4 top-1/2 -translate-y-1/2 w-1.5 h-12 bg-[var(--brand-blue)] rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity" />
-                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block px-2">Delivery Destination</label>
+                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 block px-2">Delivery Postcode / City</label>
                                <div className="relative">
                                   <MapPin className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-300" />
-                                  <input 
-                                    type="text" 
-                                    placeholder="Enter full delivery address (Street, City, Postcode)" 
-                                    value={formData.delivery.address} 
-                                    onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, address: e.target.value } }))} 
-                                    className="input-booking py-6 pl-16 text-lg" 
-                                  />
+                                  <input type="text" placeholder="City, postcode or country — any destination" value={formData.delivery.address} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, address: e.target.value } }))} className="input-booking py-6 pl-16 text-lg" />
                                </div>
                             </div>
                          </div>
@@ -239,17 +372,17 @@ export default function BookingPage() {
                              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">Required for global customs and delivery tracking.</p>
                          </div>
                          <section>
-                            <h3 className="text-xl font-black text-[var(--brand-blue)] mb-8 flex items-center gap-3 italic uppercase tracking-tighter"><User className="w-7 h-7 text-[var(--brand-orange)]" /> Sender (Remitente)</h3>
+                            <h3 className="text-xl font-black text-[var(--brand-blue)] mb-8 flex items-center gap-3 italic uppercase tracking-tighter"><User className="w-7 h-7 text-[var(--brand-orange)]" /> Sender</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                <input type="text" placeholder="Full name" value={formData.customer.name} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, name: e.target.value }, collection: { ...p.collection, name: e.target.value } }))} className="input-booking" />
                                <input type="text" placeholder="Phone of Sender" value={formData.customer.phone} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, phone: e.target.value }, collection: { ...p.collection, phone: e.target.value } }))} className="input-booking" />
                             </div>
                          </section>
                          <section className="pt-8 border-t border-slate-100">
-                            <h3 className="text-xl font-black text-[var(--brand-blue)] mb-8 flex items-center gap-3 italic uppercase tracking-tighter"><User className="w-7 h-7 text-[var(--brand-blue)]" /> Beneficiary (Destinatario)</h3>
+                            <h3 className="text-xl font-black text-[var(--brand-blue)] mb-8 flex items-center gap-3 italic uppercase tracking-tighter"><User className="w-7 h-7 text-[var(--brand-blue)]" /> Recipient</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                               <input type="text" placeholder="Beneficiary Full Name" value={formData.delivery.name} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, name: e.target.value } }))} className="input-booking" />
-                               <input type="text" placeholder="Beneficiary Phone" value={formData.delivery.phone} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, phone: e.target.value } }))} className="input-booking" />
+                               <input type="text" placeholder="Recipient Full Name" value={formData.delivery.name} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, name: e.target.value } }))} className="input-booking" />
+                               <input type="text" placeholder="Recipient Phone" value={formData.delivery.phone} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, phone: e.target.value } }))} className="input-booking" />
                             </div>
                          </section>
                       </div>
@@ -268,7 +401,23 @@ export default function BookingPage() {
                             <div className="space-y-8">
                                <h4 className="text-xl font-black text-[var(--brand-blue)] flex items-center gap-3 italic uppercase tracking-tighter"><Truck className="w-5 h-5 text-[var(--brand-orange)]" /> Origin (Pickup)</h4>
                                <div className="bg-slate-50 p-8 rounded-3xl space-y-6">
-                                  <div className="space-y-4">
+                                  {/* Collection date */}
+                                  <div className="space-y-3">
+                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic flex items-center gap-2"><Calendar className="w-3 h-3" /> Collection Date <span className="text-slate-300">· Sun & Thu</span></p>
+                                     <div className="grid grid-cols-2 gap-2">
+                                        {availablePickupDates.map(d => (
+                                           <button key={d.value} type="button" onClick={() => setFormData(p => ({ ...p, dates: { ...p.dates, collection: d.value } }))}
+                                             className={`p-3 rounded-2xl border-2 text-left transition-all ${formData.dates.collection === d.value ? 'border-[var(--brand-orange)] bg-orange-50' : 'border-white bg-white hover:border-slate-200'}`}>
+                                             <p className={`text-[9px] font-black uppercase tracking-widest ${formData.dates.collection === d.value ? 'text-[var(--brand-orange)]' : 'text-slate-400'}`}>{d.day.slice(0, 3)}</p>
+                                             <p className={`text-xs font-black ${formData.dates.collection === d.value ? 'text-slate-900' : 'text-slate-600'}`}>{d.label}</p>
+                                           </button>
+                                        ))}
+                                     </div>
+                                     {!formData.dates.collection && (
+                                        <p className="text-[9px] font-bold text-orange-400 uppercase tracking-widest">Select a date to continue</p>
+                                     )}
+                                  </div>
+                                  <div className="space-y-4 border-t border-slate-200 pt-4">
                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic flex items-center gap-2"><Info className="w-3 h-3" /> Parking availability?</p>
                                      <div className="flex flex-wrap gap-2">
                                         {['NO', 'OUTSIDE', 'STREET', 'NEARBY'].map(opt => (
@@ -347,7 +496,16 @@ export default function BookingPage() {
                  {/* STEP 6: SECURE PAYMENT */}
                  {step === 6 && (
                     <motion.div key="s6" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-8">
-                       <StripePayment amount={totalAmount} onSuccess={() => setSubmitted(true)} onCancel={prevStep} />
+                       <StripePayment
+                          amount={totalAmount}
+                          onSuccess={async () => {
+                             setIsSendingEmail(true);
+                             await saveBookingToSupabase();
+                             setIsSendingEmail(false);
+                             setSubmitted(true);
+                          }}
+                          onCancel={prevStep}
+                       />
                     </motion.div>
                  )}
 
@@ -357,11 +515,12 @@ export default function BookingPage() {
               {step < 6 && (
                  <div className="flex justify-between items-center px-4 mt-12 bg-white/50 backdrop-blur-sm p-4 rounded-3xl border border-white">
                     <button onClick={prevStep} disabled={step === 1} className={`flex items-center gap-2 text-sm font-black uppercase tracking-widest transition-all ${step === 1 ? 'opacity-0 invisible' : 'text-slate-400 hover:text-[var(--brand-blue)]'}`}><ArrowLeft className="w-4 h-4" /> Previous</button>
-                    <button 
-                      onClick={nextStep} 
-                      className="btn-primary px-16 py-4 rounded-2xl flex items-center gap-3 shadow-xl shadow-orange-500/10 active:scale-95 transition-all"
+                    <button
+                      onClick={nextStep}
+                      disabled={step === 4 && !formData.dates.collection}
+                      className="btn-primary px-16 py-4 rounded-2xl flex items-center gap-3 shadow-xl shadow-orange-500/10 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {step === 1 ? 'Get Quote' : step === 5 ? 'Proceed to Payment' : 'Continue'} <ArrowRight className="w-5 h-5" />
+                      {step === 5 ? 'Proceed to Payment' : 'Continue'} <ArrowRight className="w-5 h-5" />
                     </button>
                  </div>
               )}
@@ -423,15 +582,53 @@ export default function BookingPage() {
         </div>
       </div>
 
-      {submitted && (
+      {(submitted || isSendingEmail) && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-12 text-center">
-           <motion.div initial={{ scale: 0.8, y: 20 }} animate={{ scale: 1, y: 0 }} className="max-w-md">
-              <div className="w-32 h-32 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-10 shadow-2xl shadow-green-500/20"><CheckCircle2 className="w-16 h-16" /></div>
-              <h2 className="text-5xl font-black text-[var(--brand-blue)] mb-6 italic uppercase tracking-tighter leading-none">Booking <br /><span className="text-[var(--brand-orange)] font-black italic">Successful!</span></h2>
-              <p className="text-slate-500 text-lg mb-12 font-medium italic">Our global team in UK/DR has received your order. We'll be in touch within 30 mins to confirm pickup.</p>
-              <Link href="/" className="btn-primary px-16 py-5 rounded-[2rem] text-xl block shadow-2xl uppercase italic tracking-tighter">Proceed to Dashboard</Link>
-           </motion.div>
+           <AnimatePresence mode="wait">
+              {isSendingEmail ? (
+                <motion.div key="sending" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="flex flex-col items-center gap-6">
+                   <div className="relative">
+                      <div className="w-20 h-20 border-4 border-slate-100 border-t-[var(--brand-orange)] rounded-full animate-spin" />
+                      <Mail className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 text-[var(--brand-blue)]" />
+                   </div>
+                   <div>
+                      <h3 className="text-2xl font-black italic uppercase tracking-tighter">Personalizing Your <span className="text-[var(--brand-orange)]">Confirmation</span></h3>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">Checking logistics availability & sending email...</p>
+                   </div>
+                </motion.div>
+              ) : (
+                <motion.div key="success" initial={{ scale: 0.8, y: 20 }} animate={{ scale: 1, y: 0 }} className="max-w-md">
+                   <div className="w-32 h-32 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-10 shadow-2xl shadow-green-500/20"><CheckCircle2 className="w-16 h-16" /></div>
+                   <h2 className="text-5xl font-black text-[var(--brand-blue)] mb-6 italic uppercase tracking-tighter leading-none">Booking <br /><span className="text-[var(--brand-orange)] font-black italic">Successful!</span></h2>
+                   <p className="text-slate-500 text-lg mb-12 font-medium italic">Your order has been secured. A confirmation email has been sent to <span className="text-slate-900 font-bold">{formData.customer.email}</span>.</p>
+                   <div className="flex flex-col gap-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <button
+                          onClick={() => setShowReceipt(true)}
+                          className="bg-slate-900 text-white py-5 rounded-[2rem] shadow-2xl uppercase italic tracking-tighter hover:bg-slate-800 transition-all flex items-center justify-center gap-3 text-sm font-black"
+                        >
+                          <Mail className="w-5 h-5" /> Digital Receipt
+                        </button>
+                        <button
+                          onClick={printLabel}
+                          className="bg-[var(--brand-orange)] text-white py-5 rounded-[2rem] shadow-2xl shadow-orange-500/20 uppercase italic tracking-tighter hover:bg-orange-600 transition-all flex items-center justify-center gap-3 text-sm font-black"
+                        >
+                          <Package className="w-5 h-5" /> Print Label
+                        </button>
+                      </div>
+                      <Link href="/" className="text-slate-400 font-black uppercase text-xs tracking-widest hover:text-[var(--brand-blue)] transition-colors py-4 text-center">Return to Homepage</Link>
+                   </div>
+                </motion.div>
+              )}
+           </AnimatePresence>
         </motion.div>
+      )}
+
+      {showReceipt && (
+         <BookingEmailPreview
+           data={{ ...formData, trackingId }}
+           onClose={() => setShowReceipt(false)}
+         />
       )}
 
       <style jsx>{`

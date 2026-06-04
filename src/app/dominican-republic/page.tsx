@@ -34,7 +34,7 @@ export default function DominicanRepublicService() {
               Puerta a puerta. Enviamos tus maletas, cajas, tanques y electrodomésticos desde Londres directamente a tu casa en República Dominicana.
             </p>
             <div className="flex gap-4">
-              <Link href="/booking" className="btn-primary">Request DR Quote</Link>
+              <Link href="/booking" className="btn-primary">Book Now</Link>
               <Link href="/contact" className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white font-bold py-3 px-8 rounded-lg transition-all">Contact Spanish Support</Link>
             </div>
           </motion.div>

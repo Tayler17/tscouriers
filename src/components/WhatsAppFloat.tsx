@@ -2,8 +2,13 @@
 
 import { MessageCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { usePathname } from 'next/navigation';
 
 export default function WhatsAppFloat() {
+  const pathname = usePathname();
+  const isDashboard = pathname.startsWith('/admin') || pathname.startsWith('/driver') || pathname.startsWith('/customer');
+  if (isDashboard) return null;
+
   return (
     <motion.a
       href="https://wa.me/message/MW3IK3B7LUTSG1"

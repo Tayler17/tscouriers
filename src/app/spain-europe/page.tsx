@@ -23,7 +23,7 @@ export default function SpainEuropeService() {
               Reliable transport solutions from the UK to Spain and European destinations. We provide the logistics; you maintain control of your cargo.
             </p>
             <div className="flex flex-wrap gap-4">
-               <Link href="/booking" className="btn-primary">Request EU Quote</Link>
+               <Link href="/booking" className="btn-primary">Book Now</Link>
                <Link href="/contact" className="px-8 py-3 rounded-lg font-bold border-2 border-slate-200 text-slate-700 hover:border-[var(--brand-blue)] hover:text-[var(--brand-blue)] transition-all">Speak to an Agent</Link>
             </div>
           </motion.div>

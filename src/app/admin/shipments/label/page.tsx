@@ -1,34 +1,53 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
-import { 
-  Printer, 
-  ArrowLeft, 
-  QrCode, 
-  Scissors, 
-  Package, 
-  Truck, 
-  Globe,
-  Zap
+import { Suspense, useEffect, useState } from 'react';
+import {
+  Printer,
+  ArrowLeft,
+  Scissors,
+  Truck,
+  MapPin
 } from 'lucide-react';
+import QRCode from 'react-qr-code';
+import { supabase } from '@/lib/supabase';
 
-const MOCK_SHIPMENT = {
-  id: 'TS-9011',
-  customer: 'Carlos Ruiz',
-  destination: 'Santo Domingo, DR',
-  origin: 'London, UK',
-  weight: '45kg',
-  type: 'Barrel',
-  pieces: 1,
-  date: '28 Mar 2026',
-  service: 'Sea Freight - Priority',
-  instruction: 'Handle with extreme care. Keep dry.'
-};
+interface Shipment {
+  id: string;
+  customer: string;
+  destination: string;
+  type: string;
+  weight: string;
+  status: string;
+  date: string;
+}
 
 function LabelContent() {
   const searchParams = useSearchParams();
-  const id = searchParams.get('id') || 'TS-9011';
+  const id = searchParams.get('id') || '';
+  const [shipment, setShipment] = useState<Shipment | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!id) { setLoading(false); return; }
+    supabase.from('shipments').select('*').eq('id', id).single().then(({ data }) => {
+      setShipment(data as Shipment);
+      setLoading(false);
+    });
+  }, [id]);
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center font-black italic text-slate-400 uppercase tracking-widest">
+      Loading Label...
+    </div>
+  );
+
+  if (!shipment) return (
+    <div className="min-h-screen flex items-center justify-center flex-col gap-4">
+      <p className="font-black italic text-slate-400 uppercase tracking-widest">Shipment not found: {id}</p>
+      <button className="btn-primary py-3 px-6 rounded-2xl text-sm" onClick={() => window.history.back()}>Go Back</button>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-100 p-10 print:bg-white print:p-0 flex flex-col items-center">
@@ -43,8 +62,8 @@ function LabelContent() {
       </div>
 
       {/* 4x6 Thermal Label Container */}
-      <div className="w-[4in] h-[6in] bg-white border-[3px] border-black text-black font-sans p-6 overflow-hidden flex flex-col shadow-2xl print:shadow-none print:border-[2px]">
-         
+      <div className="w-[4in] h-[6in] bg-white border-[3px] border-black text-black font-sans p-6 overflow-hidden flex flex-col shadow-2xl print:shadow-none print:border-[2px] relative">
+
          {/* Top Logo & ID */}
          <div className="flex justify-between items-start border-b-[3px] border-black pb-4 mb-4">
             <div>
@@ -53,7 +72,7 @@ function LabelContent() {
             </div>
             <div className="text-right">
                <p className="text-[10px] font-black uppercase">Tracking ID</p>
-               <h2 className="text-xl font-black italic leading-none">{id}</h2>
+               <h2 className="text-xl font-black italic leading-none">{shipment.id}</h2>
             </div>
          </div>
 
@@ -61,12 +80,12 @@ function LabelContent() {
          <div className="grid grid-cols-2 gap-4 border-b-[3px] border-black pb-4 mb-4">
             <div className="border-r-[2px] border-black pr-4">
                <p className="text-[7px] font-black uppercase mb-1">From / Origin</p>
-               <p className="text-[10px] font-extrabold uppercase leading-tight">{MOCK_SHIPMENT.origin}</p>
+               <p className="text-[10px] font-extrabold uppercase leading-tight">London, UK</p>
                <p className="text-[7px] font-bold mt-1">Warehouse: LND-H1</p>
             </div>
             <div className="pl-2">
                <p className="text-[7px] font-black uppercase mb-1 underline decoration-2">Destination / Port</p>
-               <p className="text-[10px] font-extrabold uppercase leading-tight">{MOCK_SHIPMENT.destination}</p>
+               <p className="text-[10px] font-extrabold uppercase leading-tight">{shipment.destination}</p>
                <p className="text-[7px] font-bold mt-1">Priority: High</p>
             </div>
          </div>
@@ -74,24 +93,24 @@ function LabelContent() {
          {/* Consignee Info (Main Area) */}
          <div className="flex-grow flex flex-col justify-center border-b-[3px] border-black pb-4 mb-4">
             <p className="text-[8px] font-black uppercase mb-1">To / Consignee</p>
-            <h3 className="text-2xl font-black italic uppercase leading-tight mb-2 tracking-tighter">{MOCK_SHIPMENT.customer}</h3>
+            <h3 className="text-2xl font-black italic uppercase leading-tight mb-2 tracking-tighter">{shipment.customer}</h3>
             <div className="flex items-center gap-2 mb-4">
                <MapPin className="w-3 h-3" />
                <p className="text-[9px] font-bold uppercase tracking-tight italic">Address details in master manifest</p>
             </div>
-            
+
             <div className="grid grid-cols-3 gap-2">
                <div className="bg-black text-white p-2 rounded-lg text-center">
                   <p className="text-[6px] font-black uppercase">Weight</p>
-                  <p className="text-xs font-black italic">{MOCK_SHIPMENT.weight}</p>
+                  <p className="text-xs font-black italic">{shipment.weight}</p>
                </div>
                <div className="bg-black text-white p-2 rounded-lg text-center">
-                  <p className="text-[6px] font-black uppercase">Pieces</p>
-                  <p className="text-xs font-black italic">{MOCK_SHIPMENT.pieces}/1</p>
+                  <p className="text-[6px] font-black uppercase">Status</p>
+                  <p className="text-[8px] font-black italic">{shipment.status}</p>
                </div>
                <div className="bg-black text-white p-2 rounded-lg text-center flex flex-col justify-center">
                   <p className="text-[6px] font-black uppercase leading-none">Type</p>
-                  <p className="text-[8px] font-black italic leading-none uppercase">{MOCK_SHIPMENT.type}</p>
+                  <p className="text-[8px] font-black italic leading-none uppercase">{shipment.type}</p>
                </div>
             </div>
          </div>
@@ -101,15 +120,19 @@ function LabelContent() {
             <div className="space-y-2 max-w-[60%]">
                <div className="flex items-center gap-2">
                   <Truck className="w-4 h-4" />
-                  <p className="text-[9px] font-black uppercase italic tracking-tighter">{MOCK_SHIPMENT.service}</p>
+                  <p className="text-[9px] font-black uppercase italic tracking-tighter">Sea Freight — Door to Door</p>
                </div>
-               <p className="text-[7px] font-black uppercase leading-tight italic">Instructions: {MOCK_SHIPMENT.instruction}</p>
+               <p className="text-[7px] font-black uppercase leading-tight italic">Date: {shipment.date}</p>
                <div className="pt-2 border-t border-black/10">
                   <p className="text-[6px] font-bold">Printed on: {new Date().toLocaleString()}</p>
                </div>
             </div>
-            <div className="w-20 h-20 border-[2.5px] border-black p-1 flex items-center justify-center">
-               <QrCode className="w-full h-full" />
+            <div className="w-20 h-20 border-[2.5px] border-black p-1 flex items-center justify-center bg-white">
+               <QRCode
+                 value={`${typeof window !== 'undefined' ? window.location.origin : 'https://tscouriers.com'}/track?id=${shipment.id}`}
+                 size={72}
+                 level="M"
+               />
             </div>
          </div>
 
@@ -128,11 +151,5 @@ export default function LabelPage() {
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-black italic text-slate-400 uppercase tracking-widest">Loading Label System...</div>}>
       <LabelContent />
     </Suspense>
-  );
-}
-
-function MapPin(props: any) {
-  return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
   );
 }

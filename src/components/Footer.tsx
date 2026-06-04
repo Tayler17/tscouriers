@@ -1,9 +1,16 @@
+'use client';
+
 import Link from 'next/link';
 import Logo from './Logo';
-import { Facebook, Instagram, Twitter, Mail, Phone, MapPin, ExternalLink, MessageSquare } from 'lucide-react';
+import { Facebook, Instagram, Mail, MapPin, MessageSquare } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 
 export default function Footer() {
-  const whatsappNumber = "447700000000"; // Replace with real number
+  const pathname = usePathname();
+  const isDashboard = pathname.startsWith('/admin') || pathname.startsWith('/driver') || pathname.startsWith('/customer');
+  if (isDashboard) return null;
+
+  const whatsappLink = "https://wa.me/message/MW3IK3B7LUTSG1";
   
   return (
     <footer className="bg-slate-950 text-slate-400 pt-32 pb-16 relative overflow-hidden">
@@ -27,7 +34,7 @@ export default function Footer() {
               <a href="https://instagram.com/tscouriers" target="_blank" className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-[var(--brand-orange)] hover:text-white transition-all shadow-inner border border-white/5 active:scale-90">
                 <Instagram className="w-5 h-5" />
               </a>
-              <a href={`https://wa.me/${whatsappNumber}`} target="_blank" className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center hover:bg-emerald-500 hover:text-white transition-all shadow-inner border border-emerald-500/10 active:scale-90">
+              <a href={whatsappLink} target="_blank" className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center hover:bg-emerald-500 hover:text-white transition-all shadow-inner border border-emerald-500/10 active:scale-90">
                 <MessageSquare className="w-5 h-5" />
               </a>
             </div>
@@ -40,8 +47,8 @@ export default function Footer() {
               <li><Link href="/dominican-republic" className="hover:text-[var(--brand-orange)] transition-colors inline-flex items-center gap-2 group"><div className="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover:bg-[var(--brand-orange)] transition-colors" /> Shipping to DR</Link></li>
               <li><Link href="/spain-europe" className="hover:text-[var(--brand-orange)] transition-colors inline-flex items-center gap-2 group"><div className="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover:bg-[var(--brand-orange)] transition-colors" /> Spain & Europe</Link></li>
               <li><Link href="/local-courier" className="hover:text-[var(--brand-orange)] transition-colors inline-flex items-center gap-2 group"><div className="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover:bg-[var(--brand-orange)] transition-colors" /> Local London</Link></li>
-              <li><Link href="/services" className="hover:text-[var(--brand-orange)] transition-colors inline-flex items-center gap-2 group"><div className="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover:bg-[var(--brand-orange)] transition-colors" /> All Services</Link></li>
               <li><Link href="/shop" className="hover:text-[var(--brand-orange)] transition-colors inline-flex items-center gap-2 group"><div className="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover:bg-[var(--brand-orange)] transition-colors" /> Packing Store</Link></li>
+              <li><Link href="/services" className="hover:text-[var(--brand-orange)] transition-colors inline-flex items-center gap-2 group"><div className="w-1.5 h-1.5 rounded-full bg-slate-800 group-hover:bg-[var(--brand-orange)] transition-colors" /> All Services</Link></li>
             </ul>
           </div>
 
@@ -89,10 +96,8 @@ export default function Footer() {
           <div className="flex gap-10">
             <Link href="/" className="hover:text-white transition-colors border-b border-transparent hover:border-white pb-1">English Global</Link>
             <Link href="/" className="hover:text-white transition-colors border-b border-transparent hover:border-white pb-1">Spanish Latam</Link>
+            <Link href="/login" className="text-[var(--brand-orange)] hover:text-white transition-colors border-b border-transparent hover:border-white pb-1">Staff Access</Link>
           </div>
-          <p className="flex items-center gap-3 opacity-40 hover:opacity-100 transition-opacity">
-            Strategic Partner of <a href="https://tsmoneytransfer.com" target="_blank" className="text-white hover:text-[var(--brand-orange)] transition-colors flex items-center gap-1">TSMoneyTransfer.com <ExternalLink className="w-3 h-3" /></a>
-          </p>
         </div>
       </div>
     </footer>
