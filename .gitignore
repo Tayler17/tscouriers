@@ -19,6 +19,7 @@
 
 # production
 /build
+deploy_hostinger.zip
 
 # misc
 .DS_Store
