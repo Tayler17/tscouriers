@@ -5,23 +5,13 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Package,
-  Search,
-  MapPin,
-  ArrowRight,
-  ShieldCheck,
-  LogOut,
-  Clock,
-  CheckCircle2,
-  QrCode,
-  FileText,
-  Users,
-  Download,
-  ScanLine
+  Package, Search, MapPin, ArrowRight, ShieldCheck, LogOut,
+  Clock, CheckCircle2, FileText, Users, Download, Plus,
+  Truck, Globe, Phone, MessageCircle, ChevronDown, ChevronRight,
+  AlertCircle, Star, ArrowUpRight, Navigation, Bell
 } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import QRScannerModal from '@/components/QRScannerModal';
 
 interface Booking {
   id: string;
@@ -34,286 +24,503 @@ interface Booking {
   total_amount?: number;
   payment_status?: string;
   status_note?: string;
+  collection_address?: string;
+  delivery_address?: string;
   metadata?: { status_history?: { status: string; note: string; date: string }[] };
 }
 
-export default function CustomerDashboard() {
-  const { user, logout } = useAuth();
-  const router = useRouter();
-  const [allBookings, setAllBookings] = useState<Booking[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showScanner, setShowScanner] = useState(false);
+type FilterTab = 'all' | 'active' | 'delivered' | 'unpaid';
 
-  const myShipments = allBookings.filter(b =>
-    !searchTerm || b.id.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+const STATUS_STEPS = [
+  { key: 'Pending Pickup',    label: 'Booked',     step: 0 },
+  { key: 'Picked Up',         label: 'Collected',  step: 1 },
+  { key: 'In Warehouse',      label: 'Warehouse',  step: 1 },
+  { key: 'Ready to Ship',     label: 'Warehouse',  step: 1 },
+  { key: 'At Port',           label: 'At Port',    step: 2 },
+  { key: 'At Sea',            label: 'In Transit', step: 2 },
+  { key: 'In Transit',        label: 'In Transit', step: 2 },
+  { key: 'Pending Customs',   label: 'Customs',    step: 3 },
+  { key: 'In Custom',         label: 'Customs',    step: 3 },
+  { key: 'Out for Delivery',  label: 'Out for Delivery', step: 4 },
+  { key: 'Delivered',         label: 'Delivered',  step: 5 },
+];
+
+const STEPS_LABELS = ['Booked', 'Collected', 'In Transit', 'Customs', 'Out for Delivery', 'Delivered'];
+
+function getStep(status: string): number {
+  return STATUS_STEPS.find(s => s.key === status)?.step ?? 0;
+}
+
+function statusColor(status: string) {
+  if (status === 'Delivered')       return 'bg-emerald-500 text-white';
+  if (status === 'Out for Delivery') return 'bg-purple-500 text-white';
+  if (status === 'In Transit' || status === 'At Sea') return 'bg-blue-500 text-white';
+  if (status === 'Pending Customs' || status === 'In Custom') return 'bg-amber-500 text-white';
+  if (status === 'Failed Delivery') return 'bg-red-500 text-white';
+  return 'bg-slate-200 text-slate-600';
+}
+
+export default function CustomerDashboard() {
+  const { user, logout, isLoading: authLoading } = useAuth();
+  const router = useRouter();
+  const [bookings, setBookings]         = useState<Booking[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [searchTerm, setSearchTerm]     = useState('');
+  const [filter, setFilter]             = useState<FilterTab>('all');
+  const [expandedId, setExpandedId]     = useState<string | null>(null);
+  const [trackInput, setTrackInput]     = useState('');
 
   useEffect(() => {
+    if (authLoading) return;
     if (!user || user.role !== 'CUSTOMER') { router.push('/login'); return; }
 
-    // Filter by email (new bookings) OR by name (legacy bookings before email field existed)
-    const emailFilter = user.email
-      ? `customer_email.eq.${user.email},customer.eq.${user.name}`
-      : `customer.eq.${user.name}`;
+    const tryLoad = async () => {
+      try {
+        // Try email + name filter first
+        if (user.email) {
+          const { data, error } = await supabase
+            .from('bookings')
+            .select('*')
+            .or(`customer_email.eq.${user.email},customer.eq.${user.name}`)
+            .order('date', { ascending: false });
 
-    supabase.from('bookings').select('*')
-      .or(emailFilter)
-      .order('date', { ascending: false })
-      .then(({ data }) => {
-        if (data) setAllBookings(data as Booking[]);
-      });
-  }, [user]);
+          if (!error && data) {
+            setBookings(data as Booking[]);
+            setLoading(false);
+            return;
+          }
+        }
+        // Fallback: filter by customer name only
+        const { data } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('customer', user.name)
+          .order('date', { ascending: false });
 
-  if (!user) return null;
+        if (data) setBookings(data as Booking[]);
+      } catch {
+        // Silent fail — still hide spinner
+      } finally {
+        setLoading(false);
+      }
+    };
+    tryLoad();
+  }, [user, authLoading]);
+
+  if (authLoading || !user) return null;
+
+  const active    = bookings.filter(b => b.status !== 'Delivered' && b.status !== 'Cancelled');
+  const delivered = bookings.filter(b => b.status === 'Delivered');
+  const unpaid    = bookings.filter(b => b.payment_status === 'UNPAID' || b.payment_status === 'Pending');
+
+  const filtered = bookings.filter(b => {
+    const matchSearch = !searchTerm || b.id.toLowerCase().includes(searchTerm.toLowerCase()) || b.route?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchFilter = filter === 'all' ? true : filter === 'active' ? active.includes(b) : filter === 'delivered' ? b.status === 'Delivered' : unpaid.includes(b);
+    return matchSearch && matchFilter;
+  });
+
+  const handleTrack = () => {
+    const id = trackInput.trim().toUpperCase();
+    if (id) router.push(`/track?id=${id}`);
+  };
+
+  const handleExport = () => {
+    const headers = ['ID', 'Route', 'Type', 'Date', 'Status', 'Payment', 'Amount'];
+    const rows = bookings.map(b => [b.id, b.route, b.type, b.date, b.status, b.payment_status || 'PAID', b.total_amount ? `£${b.total_amount}` : '—'].join(','));
+    const csv = [headers.join(','), ...rows].join('\n');
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([csv], { type: 'text/csv' })), download: 'my_shipments.csv', hidden: true });
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  };
 
   return (
-    <main className="min-h-screen bg-slate-50 p-6 md:p-12 pt-32">
-      <AnimatePresence>
-        {showScanner && (
-          <QRScannerModal
-            title="Scan Shipment Label"
-            onClose={() => setShowScanner(false)}
-            onResult={(id) => {
-              setShowScanner(false);
-              router.push(`/track?id=${id}`);
-            }}
-          />
-        )}
-      </AnimatePresence>
-      <div className="container mx-auto max-w-5xl space-y-12">
-        
-        {/* Customer Header */}
-        <header className="flex justify-between items-center bg-white p-10 rounded-[4rem] shadow-xl border border-slate-100">
-           <div className="flex items-center gap-8">
-              <div className="w-20 h-20 bg-orange-100 text-[var(--brand-orange)] rounded-[2rem] flex items-center justify-center font-black text-3xl shadow-lg shadow-orange-500/10">
-                 {user.name.charAt(0)}
+    <main className="min-h-screen bg-slate-50 pb-16">
+
+      {/* ── Top Header ── */}
+      <header className="bg-white border-b border-slate-100 shadow-sm sticky top-0 z-30">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-orange-100 text-[var(--brand-orange)] rounded-2xl flex items-center justify-center font-black text-lg">
+              {user.name.charAt(0)}
+            </div>
+            <div>
+              <p className="font-black text-slate-900 text-sm uppercase italic tracking-tight leading-none">My Portal</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{user.email || user.name}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link href="/booking"
+              className="hidden sm:flex items-center gap-2 px-4 py-2.5 bg-[var(--brand-orange)] text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 transition-all">
+              <Plus className="w-3.5 h-3.5" /> New Booking
+            </Link>
+            <button onClick={() => { router.push('/'); logout().catch(() => {}); }}
+              className="p-2.5 bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-xl transition-all">
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-8 space-y-8">
+
+        {/* ── Hero Welcome + Stats ── */}
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          className="bg-slate-900 rounded-[2.5rem] p-8 relative overflow-hidden text-white shadow-2xl">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[var(--brand-orange)] opacity-10 rounded-full translate-x-20 -translate-y-20" />
+          <div className="absolute bottom-0 left-20 w-32 h-32 bg-blue-500 opacity-5 rounded-full translate-y-10" />
+          <div className="relative z-10">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Welcome back</p>
+                <h1 className="text-3xl font-black italic uppercase tracking-tighter">
+                  Hello, <span className="text-[var(--brand-orange)]">{user.name.split(' ')[0]}</span> 👋
+                </h1>
+                <p className="text-slate-400 text-sm mt-1 font-bold">Here's your shipping overview</p>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: 'Total',     val: bookings.length,   color: 'text-white' },
+                  { label: 'Active',    val: active.length,     color: 'text-blue-400' },
+                  { label: 'Delivered', val: delivered.length,  color: 'text-emerald-400' },
+                ].map(s => (
+                  <div key={s.label} className="bg-white/5 border border-white/10 rounded-2xl px-4 py-3 text-center">
+                    <p className={`text-2xl font-black italic ${s.color}`}>{s.val}</p>
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-0.5">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick actions */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6">
+              {[
+                { icon: <Plus className="w-4 h-4" />,      label: 'New Booking',  href: '/booking',  bg: 'bg-[var(--brand-orange)] hover:bg-orange-600' },
+                { icon: <Search className="w-4 h-4" />,    label: 'Get Quote',    href: '/quote',    bg: 'bg-white/10 hover:bg-white/20' },
+                { icon: <Globe className="w-4 h-4" />,     label: 'Services',     href: '/services', bg: 'bg-white/10 hover:bg-white/20' },
+                { icon: <Phone className="w-4 h-4" />,     label: 'Support',      href: '/contact',  bg: 'bg-white/10 hover:bg-white/20' },
+              ].map(btn => (
+                <Link key={btn.label} href={btn.href}
+                  className={`flex items-center justify-center gap-2 py-3 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest transition-all ${btn.bg}`}>
+                  {btn.icon} {btn.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* ── Main Grid ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+          {/* ── Left: Bookings list ── */}
+          <div className="lg:col-span-2 space-y-5">
+
+            {/* Filter + Search bar */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex bg-white rounded-2xl border border-slate-100 shadow-sm p-1 gap-1 flex-wrap">
+                {([
+                  { key: 'all',       label: `All (${bookings.length})` },
+                  { key: 'active',    label: `Active (${active.length})` },
+                  { key: 'delivered', label: `Delivered (${delivered.length})` },
+                  ...(unpaid.length > 0 ? [{ key: 'unpaid', label: `Unpaid (${unpaid.length})` }] : []),
+                ] as { key: FilterTab; label: string }[]).map(tab => (
+                  <button key={tab.key} onClick={() => setFilter(tab.key)}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${filter === tab.key ? 'bg-slate-900 text-white shadow' : 'text-slate-400 hover:text-slate-700'}`}>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="relative flex-1">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input type="text" placeholder="Search by ID or route..."
+                  value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3 bg-white border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-orange-500/20 shadow-sm" />
+              </div>
+              <button onClick={handleExport}
+                className="flex items-center gap-2 px-4 py-3 bg-white border border-slate-100 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
+                <Download className="w-3.5 h-3.5" /> Export
+              </button>
+            </div>
+
+            {/* Booking cards */}
+            {loading ? (
+              <div className="bg-white rounded-[2rem] p-12 text-center border border-slate-100 shadow-sm">
+                <div className="w-8 h-8 border-2 border-slate-200 border-t-orange-500 rounded-full animate-spin mx-auto" />
+                <p className="text-xs font-black text-slate-400 uppercase tracking-widest mt-4">Loading your shipments…</p>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="bg-white rounded-[2rem] p-16 text-center border border-slate-100 shadow-sm space-y-4">
+                <div className="w-16 h-16 bg-slate-100 rounded-[1.5rem] flex items-center justify-center mx-auto">
+                  <Package className="w-8 h-8 text-slate-300" />
+                </div>
+                <div>
+                  <p className="font-black text-slate-900 uppercase italic tracking-tighter text-lg">No shipments found</p>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+                    {searchTerm ? 'Try a different search term' : 'Book your first shipment below'}
+                  </p>
+                </div>
+                <Link href="/booking"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-[var(--brand-orange)] text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-orange-600 transition-all">
+                  <Plus className="w-4 h-4" /> Book a Shipment
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filtered.map((booking, i) => {
+                  const isExpanded = expandedId === booking.id;
+                  const step = getStep(booking.status);
+                  const isDelivered = booking.status === 'Delivered';
+                  const isPending   = booking.payment_status === 'UNPAID' || booking.payment_status === 'Pending';
+
+                  return (
+                    <motion.div key={booking.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+                      className={`bg-white rounded-[2rem] border shadow-sm transition-all overflow-hidden ${isExpanded ? 'border-[var(--brand-orange)] shadow-xl shadow-orange-500/10' : 'border-slate-100 hover:shadow-md'}`}>
+
+                      {/* Card header — always visible */}
+                      <div className="p-6 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : booking.id)}>
+                        <div className="flex items-start justify-between gap-3 mb-4">
+                          <div className="flex items-start gap-4">
+                            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 ${isDelivered ? 'bg-emerald-50 text-emerald-500' : 'bg-orange-50 text-[var(--brand-orange)]'}`}>
+                              {isDelivered ? <CheckCircle2 className="w-5 h-5" /> : <Truck className="w-5 h-5" />}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">{booking.type}</p>
+                              <h4 className="text-lg font-black text-slate-900 italic tracking-tight uppercase mt-0.5">{booking.id}</h4>
+                              <p className="text-xs font-bold text-slate-500 mt-0.5 flex items-center gap-1.5">
+                                <MapPin className="w-3 h-3 flex-shrink-0" />
+                                {booking.route}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                            <span className={`px-2.5 py-1 rounded-full text-[8px] font-black uppercase ${statusColor(booking.status)}`}>
+                              {booking.status}
+                            </span>
+                            {isPending && (
+                              <span className="px-2.5 py-1 rounded-full text-[8px] font-black uppercase bg-amber-50 text-amber-600 border border-amber-100">
+                                Unpaid
+                              </span>
+                            )}
+                            <ChevronDown className={`w-4 h-4 text-slate-300 transition-transform mt-1 ${isExpanded ? 'rotate-180' : ''}`} />
+                          </div>
+                        </div>
+
+                        {/* Progress bar */}
+                        {!isDelivered && (
+                          <div className="mt-3">
+                            <div className="flex justify-between mb-1.5">
+                              {STEPS_LABELS.map((label, idx) => (
+                                <span key={label} className={`text-[8px] font-black uppercase tracking-wider hidden sm:block ${idx <= step ? 'text-[var(--brand-orange)]' : 'text-slate-300'}`}>
+                                  {label}
+                                </span>
+                              ))}
+                            </div>
+                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <motion.div initial={{ width: 0 }} animate={{ width: `${(step / 5) * 100}%` }} transition={{ duration: 0.8, ease: 'easeOut' }}
+                                className="h-full bg-gradient-to-r from-orange-400 to-[var(--brand-orange)] rounded-full" />
+                            </div>
+                          </div>
+                        )}
+                        {isDelivered && (
+                          <div className="mt-3 h-1.5 bg-emerald-500 rounded-full" />
+                        )}
+
+                        {/* Quick info row */}
+                        <div className="flex items-center justify-between mt-4">
+                          <div className="flex items-center gap-4">
+                            <span className="text-[10px] font-bold text-slate-400">{booking.date}</span>
+                            {booking.total_amount && (
+                              <span className="text-[10px] font-black text-slate-700">£{booking.total_amount.toFixed(2)}</span>
+                            )}
+                          </div>
+                          <Link href={`/track?id=${booking.id}`} onClick={e => e.stopPropagation()}
+                            className="flex items-center gap-1.5 text-[10px] font-black text-[var(--brand-blue)] hover:text-[var(--brand-orange)] transition-colors uppercase tracking-widest">
+                            Track <ArrowRight className="w-3 h-3" />
+                          </Link>
+                        </div>
+                      </div>
+
+                      {/* Expanded details */}
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }}
+                            className="overflow-hidden">
+                            <div className="px-6 pb-6 space-y-4 border-t border-slate-50 pt-5">
+
+                              {/* Detail grid */}
+                              <div className="grid grid-cols-2 gap-3">
+                                {[
+                                  { label: 'Route',   val: booking.route },
+                                  { label: 'Type',    val: booking.type },
+                                  { label: 'Date',    val: booking.date },
+                                  { label: 'Payment', val: booking.payment_status || 'PAID' },
+                                  ...(booking.collection_address ? [{ label: 'Collection', val: booking.collection_address }] : []),
+                                  ...(booking.delivery_address   ? [{ label: 'Delivery',   val: booking.delivery_address   }] : []),
+                                  ...(booking.total_amount       ? [{ label: 'Amount',      val: `£${booking.total_amount.toFixed(2)}` }] : []),
+                                ].map(d => (
+                                  <div key={d.label} className="bg-slate-50 rounded-2xl px-4 py-3">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{d.label}</p>
+                                    <p className="text-xs font-black text-slate-800 italic uppercase tracking-tight mt-0.5 truncate">{d.val || '—'}</p>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Status note */}
+                              {booking.status_note && (
+                                <div className="bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3 flex gap-3">
+                                  <AlertCircle className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                                  <p className="text-xs font-bold text-blue-700">{booking.status_note}</p>
+                                </div>
+                              )}
+
+                              {/* Status history */}
+                              {(booking.metadata?.status_history?.length ?? 0) > 0 && (
+                                <div className="space-y-2">
+                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status History</p>
+                                  <div className="space-y-1.5 pl-4 border-l-2 border-slate-100">
+                                    {[...(booking.metadata!.status_history!)].reverse().map((h, idx) => (
+                                      <div key={idx} className="relative">
+                                        <div className="absolute -left-[1.15rem] top-1.5 w-2 h-2 rounded-full bg-slate-300" />
+                                        <p className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
+                                          {h.status} <span className="text-slate-400 normal-case font-bold">· {new Date(h.date).toLocaleDateString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</span>
+                                        </p>
+                                        {h.note && <p className="text-[11px] text-slate-500 font-medium">{h.note}</p>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Actions */}
+                              <div className="flex gap-3">
+                                <Link href={`/track?id=${booking.id}`}
+                                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-[var(--brand-orange)] transition-all">
+                                  <Navigation className="w-3.5 h-3.5" /> Track Shipment
+                                </Link>
+                                {isPending && (
+                                  <Link href="/contact"
+                                    className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-50 text-amber-600 border border-amber-100 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-amber-500 hover:text-white transition-all">
+                                    <AlertCircle className="w-3.5 h-3.5" /> Pay Now
+                                  </Link>
+                                )}
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  );
+                })}
+
+                {/* Book more CTA */}
+                <Link href="/booking"
+                  className="flex items-center justify-center gap-3 py-8 rounded-[2rem] bg-white border-2 border-dashed border-slate-200 text-slate-400 hover:border-[var(--brand-orange)] hover:text-[var(--brand-orange)] transition-all font-black text-xs uppercase tracking-widest group">
+                  <Plus className="w-4 h-4 group-hover:scale-110 transition-transform" /> Book Another Shipment
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* ── Right Sidebar ── */}
+          <div className="space-y-5">
+
+            {/* Track a shipment */}
+            <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-orange-50 text-[var(--brand-orange)] rounded-xl flex items-center justify-center">
+                  <Search className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="font-black text-slate-900 text-xs uppercase italic tracking-tight">Track a Shipment</p>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Enter your tracking ID</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <input type="text" placeholder="TS-0000…"
+                  value={trackInput} onChange={e => setTrackInput(e.target.value.toUpperCase())}
+                  onKeyDown={e => e.key === 'Enter' && handleTrack()}
+                  className="flex-1 px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold outline-none focus:bg-white transition-all uppercase tracking-wider" />
+                <button onClick={handleTrack}
+                  className="px-4 py-3 bg-[var(--brand-orange)] text-white rounded-2xl font-black text-xs uppercase hover:bg-orange-600 transition-all">
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Summary stats */}
+            {bookings.length > 0 && (
+              <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 space-y-3">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Your Summary</p>
+                {[
+                  { label: 'Total Bookings',   val: bookings.length,    icon: <Package className="w-3.5 h-3.5" />,     color: 'text-slate-700', bg: 'bg-slate-50' },
+                  { label: 'Active',           val: active.length,      icon: <Truck className="w-3.5 h-3.5" />,       color: 'text-blue-600',  bg: 'bg-blue-50' },
+                  { label: 'Delivered',        val: delivered.length,   icon: <CheckCircle2 className="w-3.5 h-3.5" />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                  ...(unpaid.length > 0 ? [{ label: 'Pending Payment', val: unpaid.length, icon: <AlertCircle className="w-3.5 h-3.5" />, color: 'text-amber-600', bg: 'bg-amber-50' }] : []),
+                ].map(s => (
+                  <div key={s.label} className={`flex items-center justify-between px-4 py-3 ${s.bg} rounded-2xl`}>
+                    <div className={`flex items-center gap-2 ${s.color}`}>
+                      {s.icon}
+                      <span className="text-[10px] font-black uppercase tracking-widest">{s.label}</span>
+                    </div>
+                    <span className={`text-sm font-black italic ${s.color}`}>{s.val}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Address Book */}
+            <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-6 space-y-4 group hover:border-[var(--brand-orange)] transition-all">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Users className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="font-black text-slate-900 text-xs uppercase italic tracking-tight">Address Book</p>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Saved recipients</p>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 font-bold">Save your frequent recipients for faster booking and quote requests.</p>
+              <Link href="/customer/address-book"
+                className="flex items-center justify-center gap-2 py-3 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-[var(--brand-blue)] transition-all">
+                Open My Book <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            {/* Services */}
+            <div className="bg-slate-900 rounded-[2rem] p-6 text-white relative overflow-hidden shadow-xl">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-[var(--brand-orange)] opacity-10 rounded-full translate-x-8 -translate-y-8" />
+              <div className="relative z-10 space-y-4">
+                <ShieldCheck className="w-8 h-8 text-[var(--brand-orange)]" />
+                <div>
+                  <h5 className="font-black italic uppercase tracking-tighter text-base">TS Couriers <br /><span className="text-[var(--brand-orange)]">Secure Cover</span></h5>
+                  <p className="text-slate-400 text-xs leading-relaxed mt-2">Cargo insurance available on all routes. Your goods, protected.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Link href="/contact"
+                    className="flex items-center justify-center gap-1.5 py-2.5 bg-white/10 hover:bg-[var(--brand-orange)] rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
+                    <MessageCircle className="w-3 h-3" /> Chat
+                  </Link>
+                  <Link href="/services"
+                    className="flex items-center justify-center gap-1.5 py-2.5 bg-white/10 hover:bg-[var(--brand-blue)] rounded-xl text-[9px] font-black uppercase tracking-widest transition-all">
+                    <Globe className="w-3 h-3" /> Services
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            {/* Get a Quote */}
+            <Link href="/quote"
+              className="flex items-center gap-4 bg-gradient-to-br from-[var(--brand-orange)] to-orange-600 rounded-[2rem] p-6 text-white shadow-lg shadow-orange-500/20 hover:shadow-xl hover:shadow-orange-500/30 transition-all group">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
+                <FileText className="w-5 h-5" />
               </div>
               <div>
-                 <h1 className="text-3xl font-black text-slate-900 tracking-tight italic uppercase">My <span className="text-[var(--brand-orange)] font-black">Shipments</span></h1>
-                 <p className="text-sm font-black text-slate-400 uppercase tracking-widest mt-1">Hello, {user.name} 👋</p>
+                <p className="font-black text-sm uppercase italic tracking-tight">Get a Quote</p>
+                <p className="text-orange-100 text-[10px] font-bold uppercase tracking-widest">Instant price estimate</p>
               </div>
-           </div>
-           <div className="flex items-center gap-3">
-             <button
-               onClick={() => setShowScanner(true)}
-               className="p-5 bg-orange-50 text-[var(--brand-orange)] hover:bg-[var(--brand-orange)] hover:text-white rounded-3xl transition-all"
-               title="Scan tracking label"
-             >
-               <ScanLine className="w-6 h-6" />
-             </button>
-             <button
-               onClick={() => {
-                 logout();
-                 router.push('/');
-               }}
-               className="p-5 bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-500 rounded-3xl transition-all"
-             >
-               <LogOut className="w-6 h-6" />
-             </button>
-           </div>
-        </header>
-
-        {/* Dash Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-           
-           {/* Shipments List */}
-           <section className="lg:col-span-8 space-y-8">
-              <div className="flex items-center justify-between px-6">
-                 <h3 className="text-xl font-black text-slate-800 italic uppercase">Logistics <span className="text-[var(--brand-orange)]">History</span></h3>
-                 <div className="flex items-center gap-4">
-                    <button 
-                       onClick={() => {
-                           const headers = ['ID', 'Origin', 'Destination', 'Status', 'Date', 'Type', 'Payment'];
-                           const csvContent = [
-                               headers.join(','),
-                               ...myShipments.map(s => [s.id, s.route, s.status, s.date, s.type, 'PAID'].join(','))
-                           ].join('\n');
-                           const blob = new Blob([csvContent], { type: 'text/csv' });
-                           const url = window.URL.createObjectURL(blob);
-                           const a = document.createElement('a');
-                           a.setAttribute('hidden', '');
-                           a.setAttribute('href', url);
-                           a.setAttribute('download', 'my_shipments_history.csv');
-                           document.body.appendChild(a);
-                           a.click();
-                           document.body.removeChild(a);
-                       }}
-                       className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-white border border-slate-100 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm"
-                    >
-                       <Download className="w-3.5 h-3.5" /> Export
-                    </button>
-                    <div className="relative">
-                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                       <input 
-                         type="text" 
-                         placeholder="Search ID..." 
-                         className="pl-12 pr-6 py-3 rounded-2xl bg-white border border-slate-100 outline-none w-48 text-xs font-bold shadow-sm"
-                         value={searchTerm}
-                         onChange={(e) => setSearchTerm(e.target.value)}
-                       />
-                    </div>
-                 </div>
-              </div>
-
-              <div className="space-y-6">
-                 {myShipments.map((shipment, i) => (
-                   <motion.div 
-                     key={shipment.id}
-                     initial={{ opacity: 0, x: -20 }}
-                     animate={{ opacity: 1, x: 0 }}
-                     transition={{ delay: i * 0.1 }}
-                     className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-2xl transition-all"
-                   >
-                      <div className="flex justify-between items-start mb-6">
-                         <div className="space-y-1">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Tracking ID</p>
-                            <h4 className="text-3xl font-black text-slate-900 italic tracking-tighter">{shipment.id}</h4>
-                         </div>
-                         <div className={`px-5 py-2 rounded-full text-[10px] font-black uppercase border ${shipment.status === 'Delivered' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-500 border-blue-100'}`}>
-                            {shipment.status}
-                         </div>
-                      </div>
-                      {shipment.status_note && (
-                        <div className="mb-6 px-5 py-3 bg-blue-50 rounded-2xl border border-blue-100 flex items-start gap-3">
-                          <div className="w-1.5 h-1.5 rounded-full bg-[var(--brand-blue)] mt-1.5 flex-shrink-0" />
-                          <p className="text-xs font-bold text-[var(--brand-blue)] leading-relaxed">{shipment.status_note}</p>
-                        </div>
-                      )}
-                      {(shipment.metadata?.status_history?.length ?? 0) > 1 && (
-                        <details className="mb-6 group">
-                          <summary className="text-[10px] font-black text-slate-400 uppercase tracking-widest cursor-pointer hover:text-slate-600 select-none list-none flex items-center gap-2">
-                            <span className="w-4 h-4 rounded bg-slate-100 flex items-center justify-center text-[8px] group-open:rotate-90 transition-transform">▶</span>
-                            Status History ({shipment.metadata!.status_history!.length} events)
-                          </summary>
-                          <div className="mt-3 space-y-2 pl-4 border-l-2 border-slate-100">
-                            {[...shipment.metadata!.status_history!].reverse().map((h, i) => (
-                              <div key={i} className="relative">
-                                <div className="absolute -left-[1.15rem] top-1.5 w-2 h-2 rounded-full bg-slate-200" />
-                                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{h.status} <span className="text-slate-300 normal-case font-bold">· {new Date(h.date).toLocaleDateString('en-GB', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}</span></p>
-                                {h.note && <p className="text-[11px] text-slate-500 font-medium mt-0.5">{h.note}</p>}
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      )}
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-10 pb-10 border-b border-slate-50">
-                         <div className="space-y-6">
-                            <div className="flex items-center gap-4">
-                               <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-[var(--brand-blue)] transition-colors">
-                                  <MapPin className="w-5 h-5" />
-                               </div>
-                               <div>
-                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Route</p>
-                                  <p className="font-black text-slate-800 italic uppercase italic tracking-tighter">{shipment.route}</p>
-                               </div>
-                            </div>
-                            <div className="flex items-center gap-4">
-                               <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 group-hover:text-[var(--brand-orange)] transition-colors">
-                                  <Package className="w-5 h-5" />
-                               </div>
-                               <div>
-                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Type</p>
-                                  <p className="font-bold text-slate-800">{shipment.type}</p>
-                               </div>
-                            </div>
-                         </div>
-                         <div className="space-y-6 text-right">
-                            <div className="flex flex-col items-end">
-                               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Payment Status</p>
-                               {shipment.payment_status === 'UNPAID' ? (
-                                 <div className="flex items-center gap-2 text-orange-500 font-extrabold text-sm italic">
-                                   <Clock className="w-4 h-4" /> PENDING
-                                 </div>
-                               ) : (
-                                 <div className="flex items-center gap-2 text-emerald-500 font-extrabold text-sm italic">
-                                   <CheckCircle2 className="w-4 h-4" /> PAID
-                                 </div>
-                               )}
-                            </div>
-                            {shipment.total_amount && (
-                              <div className="flex flex-col items-end">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Amount</p>
-                                <span className="font-black text-slate-800 text-sm italic">£{shipment.total_amount.toFixed(2)}</span>
-                              </div>
-                            )}
-                            <div className="flex flex-col items-end">
-                               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Booked On</p>
-                               <span className="font-bold text-slate-500">{shipment.date}</span>
-                            </div>
-                         </div>
-                      </div>
-
-                      <div className="flex justify-between items-center">
-                         <div className="flex items-center gap-4">
-                            <Link href={`/track?id=${shipment.id}`} className="text-sm font-black text-[var(--brand-blue)] hover:text-[var(--brand-orange)] transition-colors italic uppercase tracking-tighter flex items-center gap-2">
-                               View Detailed Tracking <ArrowRight className="w-4 h-4" />
-                            </Link>
-                         </div>
-                         <div className="flex items-center gap-2">
-                            <Link
-                               href={`/track?id=${shipment.id}`}
-                               className="p-4 bg-slate-50 text-slate-400 hover:bg-[var(--brand-orange)] hover:text-white rounded-2xl transition-all shadow-sm"
-                               title="Track Shipment"
-                            >
-                               <QrCode className="w-5 h-5" />
-                            </Link>
-                            <Link
-                               href={`/track?id=${shipment.id}`}
-                               className="p-4 bg-slate-50 text-slate-400 hover:bg-[var(--brand-blue)] hover:text-white rounded-2xl transition-all shadow-sm"
-                               title="View Shipment Details"
-                            >
-                               <FileText className="w-5 h-5" />
-                            </Link>
-                         </div>
-                      </div>
-                   </motion.div>
-                 ))}
-                 
-                 <Link href="/booking" className="block w-full text-center py-10 rounded-[3.5rem] bg-white border-2 border-dashed border-slate-100 text-slate-400 hover:border-blue-500 hover:text-blue-500 transition-all font-bold group">
-                    <span className="flex items-center justify-center gap-3">
-                       <PlusIcon className="w-5 h-5 group-hover:scale-110 transition-transform" /> Need another shipping? Start Booking
-                    </span>
-                 </Link>
-              </div>
-           </section>
-
-            {/* Sidebar: Loyalty / Promo */}
-            <div className="lg:col-span-4 space-y-10">
-               <div className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm text-center group hover:border-[var(--brand-orange)] transition-all">
-                  <div className="w-16 h-16 bg-orange-50 text-[var(--brand-orange)] rounded-3xl flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
-                     <Users className="w-8 h-8" />
-                  </div>
-                  <h5 className="font-black text-slate-800 mb-2 uppercase italic">Address Book</h5>
-                  <p className="text-xs text-slate-400 leading-relaxed mb-8">Save your frequent recipients for faster booking.</p>
-                  <Link href="/customer/address-book" className="btn-primary w-full py-4 rounded-2xl inline-block text-xs uppercase font-black tracking-widest italic">Open My Book</Link>
-               </div>
-
-               <div className="bg-[var(--brand-blue)] p-10 rounded-[3.5rem] text-white relative overflow-hidden shadow-2xl shadow-blue-900/40">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 -translate-y-12 translate-x-12 rounded-full" />
-                  <ShieldCheck className="w-12 h-12 text-[var(--brand-orange)] mb-6" />
-                  <h4 className="text-xl font-black italic uppercase tracking-tighter mb-4">TS Couriers <br /> <span className="text-[var(--brand-orange)]">Secure Cover</span></h4>
-                  <p className="text-blue-100 text-sm leading-relaxed mb-6">Your shipments are handled with care. Optional cargo insurance available on all routes.</p>
-                  <Link href="/contact" className="inline-block px-6 py-3 bg-white/10 hover:bg-[var(--brand-orange)] border border-white/20 rounded-2xl text-xs font-black uppercase tracking-widest transition-all">Learn More</Link>
-               </div>
-
-               <div className="bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-sm text-center">
-                  <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-3xl flex items-center justify-center mx-auto mb-6">
-                     <Clock className="w-8 h-8" />
-                  </div>
-                  <h5 className="font-black text-slate-800 mb-2 uppercase italic">Need Help?</h5>
-                  <p className="text-xs text-slate-400 leading-relaxed mb-8">Our bilingual support is available 24/7.</p>
-                  <Link href="/contact" className="btn-primary w-full py-4 rounded-2xl inline-block text-xs">Chat with Support</Link>
-               </div>
-            </div>
+              <ArrowUpRight className="w-5 h-5 ml-auto opacity-60 group-hover:opacity-100 group-hover:translate-x-1 group-hover:-translate-y-1 transition-all" />
+            </Link>
+          </div>
         </div>
       </div>
     </main>
-  );
-}
-
-function PlusIcon(props: any) {
-  return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
   );
 }

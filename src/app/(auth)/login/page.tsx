@@ -23,10 +23,11 @@ export default function LoginPage() {
 
     const { success, user: loggedUser, error: loginError } = await login(email, password);
 
-    if (success && loggedUser) {
-      if (loggedUser.role === 'ADMIN' || loggedUser.role === 'STAFF') {
+    if (success) {
+      // Even if profile wasn't found, Supabase auth worked — redirect by role
+      if (loggedUser?.role === 'ADMIN' || loggedUser?.role === 'STAFF') {
         router.push('/admin');
-      } else if (loggedUser.role === 'DRIVER') {
+      } else if (loggedUser?.role === 'DRIVER') {
         router.push('/driver');
       } else {
         router.push('/customer');

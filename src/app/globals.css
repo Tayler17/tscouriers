@@ -55,3 +55,20 @@ h1, h2, h3, h4, h5, h6 {
 .btn-secondary {
   @apply bg-[var(--brand-blue)] hover:bg-[var(--brand-blue-light)] text-white px-6 py-3 rounded-lg font-bold transition-all transform hover:scale-105 active:scale-95 shadow-lg;
 }
+
+/* Mobile sidebar: remove left margin and add top buffer for hamburger */
+@media (max-width: 1023px) {
+  .ml-72 {
+    margin-left: 0 !important;
+    padding-top: 4.5rem !important;
+  }
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

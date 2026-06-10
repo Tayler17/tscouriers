@@ -25,6 +25,12 @@ export interface Booking {
   date: string;
   status: string;
   type: string;
+  driver_id?: string | null;
+  driver_name?: string | null;
+  collection_address?: string;
+  delivery_address?: string;
+  total_amount?: number;
+  payment_status?: string;
 }
 
 export interface Container {

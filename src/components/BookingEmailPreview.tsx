@@ -22,6 +22,76 @@ interface EmailPreviewProps {
 
 export default function BookingEmailPreview({ data, onClose }: EmailPreviewProps) {
   const trackingNumber = data.trackingId || `TS-${Math.floor(100000 + Math.random() * 900000)}`;
+  const trackUrl = typeof window !== 'undefined' ? `${window.location.origin}/track?id=${trackingNumber}` : `/track?id=${trackingNumber}`;
+
+  const handlePrint = () => {
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(`<!DOCTYPE html><html><head><title>Booking Receipt - ${trackingNumber}</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: Arial, sans-serif; padding: 40px; background: #fff; color: #1e293b; }
+      .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+      .logo { font-size: 22px; font-weight: 900; letter-spacing: -1px; text-transform: uppercase; }
+      .logo span { color: #E85D04; }
+      .receipt-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: #94a3b8; text-align: right; }
+      .receipt-date { font-size: 13px; font-weight: 700; text-align: right; margin-top: 4px; }
+      .confirmed { text-align: center; padding: 30px 0; border-bottom: 1px solid #f1f5f9; margin-bottom: 30px; }
+      .confirmed h1 { font-size: 28px; font-weight: 900; text-transform: uppercase; letter-spacing: -1px; }
+      .confirmed h1 span { color: #E85D04; }
+      .tracking-box { background: #0f172a; color: #fff; border-radius: 16px; padding: 24px 32px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+      .tracking-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: #93c5fd; margin-bottom: 6px; }
+      .tracking-id { font-size: 24px; font-weight: 900; letter-spacing: 2px; }
+      .track-url { font-size: 11px; color: #94a3b8; margin-top: 6px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
+      .section-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; color: #94a3b8; margin-bottom: 10px; }
+      .field { margin-bottom: 6px; }
+      .field-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #94a3b8; }
+      .field-val { font-size: 13px; font-weight: 700; margin-top: 2px; }
+      .items-row { display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding: 8px 0; font-size: 12px; font-weight: 700; }
+      .footer { text-align: center; font-size: 10px; color: #94a3b8; margin-top: 30px; padding-top: 20px; border-top: 1px solid #f1f5f9; }
+    </style></head><body>
+    <div class="header">
+      <div class="logo">TS <span>Couriers</span></div>
+      <div>
+        <div class="receipt-title">Order Receipt</div>
+        <div class="receipt-date">${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</div>
+      </div>
+    </div>
+    <div class="confirmed">
+      <h1>Your Ship is <span>Confirmed!</span></h1>
+      <p style="color:#64748b;margin-top:8px;font-size:13px;">Hi ${data.customer?.name || 'Customer'}, your booking has been received successfully.</p>
+    </div>
+    <div class="tracking-box">
+      <div>
+        <div class="tracking-label">Private Tracking ID</div>
+        <div class="tracking-id">${trackingNumber}</div>
+        <div class="track-url">Track: ${trackUrl}</div>
+      </div>
+    </div>
+    <div class="grid">
+      <div>
+        <div class="section-label">Collection</div>
+        <div class="field"><div class="field-label">Name</div><div class="field-val">${data.collection?.name || '—'}</div></div>
+        <div class="field"><div class="field-label">Address</div><div class="field-val">${data.collection?.address || '—'}</div></div>
+        <div class="field"><div class="field-label">Date</div><div class="field-val">${data.dates?.collection || 'TBC'}</div></div>
+      </div>
+      <div>
+        <div class="section-label">Delivery</div>
+        <div class="field"><div class="field-label">Name</div><div class="field-val">${data.delivery?.name || '—'}</div></div>
+        <div class="field"><div class="field-label">Address</div><div class="field-val">${data.delivery?.address || '—'}</div></div>
+        <div class="field"><div class="field-label">Phone</div><div class="field-val">${data.delivery?.phone || '—'}</div></div>
+      </div>
+    </div>
+    <div class="section-label">Items</div>
+    ${(data.items || []).map((item: any) => `<div class="items-row"><span>${item.quantity}× ${item.name}</span><span>£${(item.price * item.quantity).toFixed(2)}</span></div>`).join('')}
+    <div class="footer">
+      © ${new Date().getFullYear()} TS Couriers · Dominican Shipping · All rights reserved
+    </div>
+    <script>window.onload = () => window.print();</script>
+    </body></html>`);
+    win.document.close();
+  };
 
   return (
     <div className="fixed inset-0 z-[200] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
@@ -41,8 +111,8 @@ export default function BookingEmailPreview({ data, onClose }: EmailPreviewProps
               inbox.ts-couriers.com
            </div>
            <div className="flex gap-3 text-slate-400">
-              <Printer className="w-4 h-4 cursor-pointer hover:text-slate-600" />
-              <Download className="w-4 h-4 cursor-pointer hover:text-slate-600" />
+              <Printer className="w-4 h-4 cursor-pointer hover:text-slate-600" onClick={handlePrint} />
+              <Download className="w-4 h-4 cursor-pointer hover:text-slate-600" onClick={handlePrint} />
            </div>
         </div>
 
@@ -77,7 +147,10 @@ export default function BookingEmailPreview({ data, onClose }: EmailPreviewProps
                     <p className="text-[10px] font-black uppercase text-blue-200 tracking-widest leading-none mb-2">Private Tracking ID</p>
                     <p className="text-2xl font-black tracking-tighter italic">{trackingNumber}</p>
                  </div>
-                 <button className="bg-[var(--brand-orange)] hover:bg-[#e65100] text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-colors">
+                 <button
+                   onClick={() => window.open(`/track?id=${trackingNumber}`, '_blank')}
+                   className="bg-[var(--brand-orange)] hover:bg-[#e65100] text-white px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-3 transition-colors"
+                 >
                     Track Journey <ExternalLink className="w-3.5 h-3.5" />
                  </button>
               </div>

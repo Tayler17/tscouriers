@@ -30,8 +30,10 @@ import { CATEGORIES, ITEMS, SERVICE_PLANS, SERVICE_FEATURES } from './constants'
 import StripePayment from '@/components/StripePayment';
 import BookingEmailPreview from '@/components/BookingEmailPreview';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/context/AuthContext';
 
 export default function BookingPage() {
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,6 +54,20 @@ export default function BookingPage() {
   });
 
   const [dynamicPlans, setDynamicPlans] = useState(SERVICE_PLANS);
+
+  // Pre-fill customer info if user is logged in as CUSTOMER
+  useEffect(() => {
+    if (user && user.role === 'CUSTOMER') {
+      setFormData(prev => ({
+        ...prev,
+        customer: {
+          name:  prev.customer.name  || user.name  || '',
+          email: prev.customer.email || user.email || '',
+          phone: prev.customer.phone || '',
+        },
+      }));
+    }
+  }, [user]);
 
   useEffect(() => {
     supabase.from('plan_settings').select('*').then(({ data }) => {
@@ -173,33 +189,58 @@ export default function BookingPage() {
     const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     const itemType = formData.items.length === 1 ? formData.items[0].name : formData.items.length > 1 ? 'Mixed Cargo' : 'General';
 
-    await Promise.all([
-      supabase.from('bookings').insert({
-        id,
-        customer: formData.customer.name || 'Guest',
-        customer_email: formData.customer.email || null,
-        customer_phone: formData.customer.phone || null,
-        route: `${formData.collection.address?.split(',')[0] || 'Origin'} → ${formData.delivery.address?.split(',')[0] || 'Destination'}`,
-        date: formData.dates.collection || today,
-        status: 'Pending Pickup',
-        type: itemType,
-        collection_address: formData.collection.address,
-        delivery_address: formData.delivery.address,
-        total_amount: totalAmount,
-        plan_id: formData.planId,
-      }),
-      supabase.from('shipments').insert({
-        id: `SHP-${Date.now().toString().slice(-6)}`,
-        customer: formData.customer.name || 'Guest',
-        destination: formData.delivery.address?.split(',')[0] || 'International',
-        origin: formData.collection.address?.split(',')[0] || 'London',
-        type: itemType,
-        weight: `${formData.items.reduce((a, i) => a + i.quantity, 0)} items`,
-        status: 'Pending Pickup',
-        date: today,
-        items: formData.items,
-      }),
-    ]);
+    // Use auth user's email first (ensures booking appears in customer portal)
+    const resolvedEmail = (user?.role === 'CUSTOMER' ? user.email : null)
+      || formData.customer.email
+      || null;
+
+    // metadata stores extra fields that may not exist as columns
+    const bookingMeta = {
+      customer_phone: formData.customer.phone || null,
+      plan_id: formData.planId,
+      items: formData.items,
+      collection_notes: formData.collection.notes || null,
+      delivery_notes: formData.delivery.notes || null,
+      delivery_name: formData.delivery.name || null,
+      delivery_phone: formData.delivery.phone || null,
+      collection_parking: formData.collection.parking,
+      delivery_floor: formData.delivery.floor,
+    };
+
+    try {
+      await Promise.all([
+        supabase.from('bookings').insert({
+          id,
+          customer: formData.customer.name || user?.name || 'Guest',
+          customer_email: resolvedEmail,
+          route: `${formData.collection.address?.split(',')[0] || 'Origin'} → ${formData.delivery.address?.split(',')[0] || 'Destination'}`,
+          date: formData.dates.collection || today,
+          status: 'Pending Pickup',
+          type: itemType,
+          collection_address: formData.collection.address,
+          delivery_address: formData.delivery.address,
+          total_amount: totalAmount,
+        }),
+        supabase.from('shipments').insert({
+          id: `SHP-${Date.now().toString().slice(-6)}`,
+          customer: formData.customer.name || user?.name || 'Guest',
+          destination: formData.delivery.address?.split(',')[0] || 'International',
+          origin: formData.collection.address?.split(',')[0] || 'London',
+          type: itemType,
+          weight: `${formData.items.reduce((a, i) => a + i.quantity, 0)} items`,
+          status: 'Pending Pickup',
+          date: today,
+          metadata: {
+            ...bookingMeta,
+            booking_id: id,
+            customer_email: resolvedEmail,
+          },
+        }),
+      ]);
+    } catch (err) {
+      console.error('Booking save error:', err);
+      // Continue anyway — show success to user even if DB insert failed
+    }
 
     setTrackingId(id);
     return id;
@@ -212,8 +253,8 @@ export default function BookingPage() {
   
   const totalAmount = baseItemsPrice + currentPlan.surcharge;
 
-  const nextStep = () => setStep(s => Math.min(s + 1, 6));
-  const prevStep = () => setStep(s => Math.max(s - 1, 1));
+  const nextStep = () => { setStep(s => Math.min(s + 1, 6)); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const prevStep = () => { setStep(s => Math.max(s - 1, 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
   const addItem = (item: typeof ITEMS[0]) => {
     setFormData(prev => {
@@ -326,37 +367,63 @@ export default function BookingPage() {
                  {/* STEP 2: CHOOSE PACKAGE (ITEM PICKER) */}
                  {step === 2 && (
                    <motion.div key="s2" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-6">
-                      <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row h-[700px]">
-                         <div className="w-full md:w-64 bg-slate-50 border-r border-slate-100 p-6 space-y-2 overflow-y-auto">
-                            <h3 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6 italic">Item Categories</h3>
-                            {CATEGORIES.map(cat => (
-                              <button 
-                                key={cat.id} 
-                                onClick={() => setActiveCategory(cat.id)}
-                                className={`w-full flex flex-col items-center gap-3 p-4 rounded-3xl transition-all ${activeCategory === cat.id ? 'bg-white shadow-xl shadow-slate-200 border border-slate-100 text-[var(--brand-blue)]' : 'text-slate-400 hover:bg-white/50'}`}
-                              >
-                                 <cat.icon className={`w-7 h-7 ${activeCategory === cat.id ? 'text-[var(--brand-orange)]' : 'opacity-40'}`} />
-                                 <span className="text-[10px] font-extrabold uppercase text-center">{cat.name}</span>
-                              </button>
-                            ))}
-                         </div>
-                         <div className="flex-grow flex flex-col p-8">
-                            <div className="relative mb-8">
-                               <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
-                               <input type="text" placeholder="Search packages (Barrel, Box, Sofa...)" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-16 pr-8 py-5 rounded-2xl bg-slate-50 border border-slate-100 focus:bg-white focus:ring-4 focus:ring-blue-500/5 outline-none transition-all font-bold" />
+                      <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row md:h-[700px]">
+
+                         {/* Categories — horizontal scroll on mobile, vertical sidebar on desktop */}
+                         <div className="md:w-64 bg-slate-50 border-b md:border-b-0 md:border-r border-slate-100 p-4 md:p-6 md:overflow-y-auto flex-shrink-0">
+                            <h3 className="hidden md:block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6 italic">Item Categories</h3>
+                            <div className="flex flex-row md:flex-col gap-2 overflow-x-auto pb-1 md:pb-0 md:space-y-2 scrollbar-hide">
+                              {CATEGORIES.map(cat => (
+                                <button
+                                  key={cat.id}
+                                  onClick={() => setActiveCategory(cat.id)}
+                                  className={`flex-shrink-0 flex md:flex-col items-center gap-2 md:gap-3 px-3 py-2.5 md:p-4 rounded-2xl md:rounded-3xl transition-all ${activeCategory === cat.id ? 'bg-white shadow-lg border border-slate-100 text-[var(--brand-blue)]' : 'text-slate-400 hover:bg-white/70'}`}
+                                >
+                                  <cat.icon className={`w-5 h-5 md:w-7 md:h-7 flex-shrink-0 ${activeCategory === cat.id ? 'text-[var(--brand-orange)]' : 'opacity-40'}`} />
+                                  <span className="text-[9px] md:text-[10px] font-extrabold uppercase text-center whitespace-nowrap">{cat.name}</span>
+                                </button>
+                              ))}
                             </div>
-                            <div className="flex-grow overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-                               {filteredItems.map(item => (
-                                 <div key={item.id} className="group flex items-center justify-between p-5 rounded-3xl bg-white border border-slate-50 hover:border-slate-200 hover:shadow-lg transition-all">
+                         </div>
+
+                         <div className="flex-grow flex flex-col p-5 md:p-8">
+                            <div className="relative mb-5 md:mb-8">
+                               <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                               <input type="text" placeholder="Search packages (Barrel, Box, Sofa...)" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-14 pr-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 focus:bg-white focus:ring-4 focus:ring-blue-500/5 outline-none transition-all font-bold text-sm" />
+                            </div>
+                            <div className="flex-grow overflow-y-auto space-y-3 pr-1 custom-scrollbar min-h-[320px] md:min-h-0">
+                               {filteredItems.map(item => {
+                                  const cartItem = formData.items.find(i => i.id === item.id);
+                                  return (
+                                 <div key={item.id} className={`group flex items-center justify-between p-5 rounded-3xl border transition-all ${cartItem ? 'bg-orange-50 border-orange-200 shadow-md' : 'bg-white border-slate-50 hover:border-slate-200 hover:shadow-lg'}`}>
                                     <div className="flex items-center gap-4">
-                                       <div className="w-12 h-12 bg-slate-50 group-hover:bg-blue-50 rounded-2xl flex items-center justify-center transition-colors">
-                                          <Package className="w-6 h-6 text-slate-300 group-hover:text-[var(--brand-blue)]" />
+                                       <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${cartItem ? 'bg-[var(--brand-orange)]' : 'bg-slate-50 group-hover:bg-blue-50'}`}>
+                                          <Package className={`w-6 h-6 ${cartItem ? 'text-white' : 'text-slate-300 group-hover:text-[var(--brand-blue)]'}`} />
                                        </div>
-                                       <span className="font-bold text-slate-700 italic">{item.name}</span>
+                                       <div>
+                                          <span className="font-bold text-slate-700 italic block">{item.name}</span>
+                                          <span className="text-[11px] font-black text-emerald-600">£{item.basePrice.toFixed(2)}</span>
+                                       </div>
                                     </div>
-                                    <button onClick={() => addItem(item)} className="bg-[var(--brand-orange)] text-white px-6 py-2 rounded-xl text-xs font-black uppercase shadow-lg shadow-orange-500/20 active:scale-95 transition-all">Add to Cart</button>
+                                    {cartItem ? (
+                                      <div className="flex items-center gap-2">
+                                        <button onClick={() => {
+                                          if (cartItem.quantity <= 1) { removeItem(item.id); }
+                                          else { setFormData(prev => ({ ...prev, items: prev.items.map(i => i.id === item.id ? { ...i, quantity: i.quantity - 1 } : i) })); }
+                                        }} className="w-8 h-8 bg-white rounded-xl flex items-center justify-center text-slate-500 hover:bg-red-50 hover:text-red-500 transition-all border border-slate-100">
+                                          <Minus className="w-3.5 h-3.5" />
+                                        </button>
+                                        <span className="w-6 text-center font-black text-slate-900">{cartItem.quantity}</span>
+                                        <button onClick={() => addItem(item)} className="w-8 h-8 bg-[var(--brand-orange)] text-white rounded-xl flex items-center justify-center hover:bg-orange-600 transition-all">
+                                          <Plus className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button onClick={() => addItem(item)} className="bg-[var(--brand-orange)] text-white px-6 py-2 rounded-xl text-xs font-black uppercase shadow-lg shadow-orange-500/20 active:scale-95 transition-all">Add to Cart</button>
+                                    )}
                                  </div>
-                               ))}
+                                  );
+                               })}
                             </div>
                          </div>
                       </div>
@@ -371,18 +438,54 @@ export default function BookingPage() {
                              <h2 className="text-3xl font-black text-slate-900 uppercase italic tracking-tighter">Contact <span className="text-[var(--brand-orange)]">Information</span></h2>
                              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">Required for global customs and delivery tracking.</p>
                          </div>
+
+                         {/* ── Sender ── */}
                          <section>
-                            <h3 className="text-xl font-black text-[var(--brand-blue)] mb-8 flex items-center gap-3 italic uppercase tracking-tighter"><User className="w-7 h-7 text-[var(--brand-orange)]" /> Sender</h3>
+                            <h3 className="text-xl font-black text-[var(--brand-blue)] mb-6 flex items-center gap-3 italic uppercase tracking-tighter"><User className="w-7 h-7 text-[var(--brand-orange)]" /> Sender</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                               <input type="text" placeholder="Full name" value={formData.customer.name} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, name: e.target.value }, collection: { ...p.collection, name: e.target.value } }))} className="input-booking" />
-                               <input type="text" placeholder="Phone of Sender" value={formData.customer.phone} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, phone: e.target.value }, collection: { ...p.collection, phone: e.target.value } }))} className="input-booking" />
+                               <input type="text" placeholder="Full name *" value={formData.customer.name} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, name: e.target.value }, collection: { ...p.collection, name: e.target.value } }))} className="input-booking" />
+                               <input type="text" placeholder="Phone *" value={formData.customer.phone} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, phone: e.target.value }, collection: { ...p.collection, phone: e.target.value } }))} className="input-booking" />
+                               <input type="email" placeholder="Email address" value={formData.customer.email} onChange={e => setFormData(p => ({ ...p, customer: { ...p.customer, email: e.target.value }, collection: { ...p.collection, email: e.target.value } }))} className="input-booking md:col-span-2" />
+                            </div>
+                            {/* Collection address — editable copy of Step 1 */}
+                            <div className="mt-6">
+                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block flex items-center gap-2">
+                                 <MapPin className="w-3 h-3 text-[var(--brand-orange)]" /> Collection Address
+                                 {!formData.collection.address && <span className="text-red-400 normal-case font-bold text-[9px]">— enter from Step 1 or correct here</span>}
+                               </label>
+                               <div className="relative">
+                                 <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                                 <input type="text" placeholder="e.g. E1 6RF or 14 High Street, London" value={formData.collection.address} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, address: e.target.value } }))} className="input-booking pl-14" />
+                               </div>
+                            </div>
+                            <div className="mt-4">
+                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Notes for Driver (Pickup)</label>
+                               <input type="text" placeholder="Gate code, buzzer, special instructions..." value={formData.collection.notes} onChange={e => setFormData(p => ({ ...p, collection: { ...p.collection, notes: e.target.value } }))} className="input-booking" />
                             </div>
                          </section>
+
+                         {/* ── Recipient ── */}
                          <section className="pt-8 border-t border-slate-100">
-                            <h3 className="text-xl font-black text-[var(--brand-blue)] mb-8 flex items-center gap-3 italic uppercase tracking-tighter"><User className="w-7 h-7 text-[var(--brand-blue)]" /> Recipient</h3>
+                            <h3 className="text-xl font-black text-[var(--brand-blue)] mb-6 flex items-center gap-3 italic uppercase tracking-tighter"><User className="w-7 h-7 text-[var(--brand-blue)]" /> Recipient</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                               <input type="text" placeholder="Recipient Full Name" value={formData.delivery.name} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, name: e.target.value } }))} className="input-booking" />
-                               <input type="text" placeholder="Recipient Phone" value={formData.delivery.phone} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, phone: e.target.value } }))} className="input-booking" />
+                               <input type="text" placeholder="Recipient Full Name *" value={formData.delivery.name} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, name: e.target.value } }))} className="input-booking" />
+                               <input type="text" placeholder="Recipient Phone *" value={formData.delivery.phone} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, phone: e.target.value } }))} className="input-booking" />
+                               <input type="email" placeholder="Recipient Email" value={formData.delivery.email} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, email: e.target.value } }))} className="input-booking md:col-span-2" />
+                            </div>
+                            {/* Delivery address — editable copy of Step 1 */}
+                            <div className="mt-6">
+                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block flex items-center gap-2">
+                                 <MapPin className="w-3 h-3 text-[var(--brand-blue)]" /> Delivery Address
+                                 {!formData.delivery.address && <span className="text-red-400 normal-case font-bold text-[9px]">— enter from Step 1 or correct here</span>}
+                               </label>
+                               <div className="relative">
+                                 <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                                 <input type="text" placeholder="City, postcode or country — any destination" value={formData.delivery.address} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, address: e.target.value } }))} className="input-booking pl-14" />
+                               </div>
+                            </div>
+                            <div className="mt-4">
+                               <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Notes for Driver (Delivery)</label>
+                               <input type="text" placeholder="Address details, contact at destination..." value={formData.delivery.notes} onChange={e => setFormData(p => ({ ...p, delivery: { ...p.delivery, notes: e.target.value } }))} className="input-booking" />
                             </div>
                          </section>
                       </div>

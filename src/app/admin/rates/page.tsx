@@ -19,6 +19,7 @@ interface Rate {
   rate: string;
   status: string;
   zone_id?: string;
+  category?: string;
 }
 
 interface Zone {
@@ -37,6 +38,7 @@ interface RateForm {
   rate: string;
   unit: string;
   status: string;
+  category: string;
 }
 
 interface ZoneForm {
@@ -51,8 +53,19 @@ interface ZoneForm {
 const RATE_TYPES = ['Sea Freight', 'Air Freight', 'Road Freight', 'London Courier', 'Express'];
 const RATE_UNITS = ['per kg', 'per barrel', 'per box', 'per CBM', 'per pallet', 'flat rate'];
 const COUNTRIES  = ['United Kingdom', 'Dominican Republic', 'Spain', 'France', 'United States', 'Germany', 'Netherlands', 'Other'];
+const ITEM_CATEGORIES = [
+  { id: '', label: '— No category —' },
+  { id: 'storage',      label: 'Barrels & Boxes (Shipping)' },
+  { id: 'living-room',  label: 'Living Room Furniture' },
+  { id: 'bedroom',      label: 'Bedroom Furniture' },
+  { id: 'dining-room',  label: 'Dining Furniture' },
+  { id: 'kitchen',      label: 'Kitchen Appliances' },
+  { id: 'bathroom',     label: 'Bathroom Items' },
+  { id: 'office',       label: 'Office Furniture' },
+  { id: 'vehicle',      label: 'Vehicle Parts' },
+];
 
-const EMPTY_RATE: RateForm = { item: '', type: 'Sea Freight', zone_ids: [], rate: '', unit: 'per barrel', status: 'Active' };
+const EMPTY_RATE: RateForm = { item: '', type: 'Sea Freight', zone_ids: [], rate: '', unit: 'per barrel', status: 'Active', category: '' };
 const EMPTY_ZONE: ZoneForm = { name: '', origin_country: 'United Kingdom', origin_keywords: '', dest_country: 'Dominican Republic', dest_keywords: '' };
 
 // ── Component ────────────────────────────────────────────────────
@@ -96,18 +109,42 @@ export default function RatesPage() {
     setZoneForm({ name: z.name, origin_country: z.origin_country, origin_keywords: z.origin_keywords, dest_country: z.dest_country, dest_keywords: z.dest_keywords });
     setShowZoneModal(true);
   };
+  const [zoneError, setZoneError] = useState('');
+
   const handleSaveZone = async () => {
     if (!zoneForm.name) return;
     setSavingZone(true);
-    if (editingZone) {
-      await supabase.from('rate_zones').update(zoneForm).eq('id', editingZone.id);
-      setZones(prev => prev.map(z => z.id === editingZone.id ? { ...z, ...zoneForm } : z));
-    } else {
-      const id = `ZONE-${Date.now().toString().slice(-5)}`;
-      await supabase.from('rate_zones').insert({ id, ...zoneForm });
-      setZones(prev => [...prev, { id, ...zoneForm }]);
+    setZoneError('');
+    const newId = `ZONE-${Date.now().toString().slice(-5)}`;
+    try {
+      console.log('[Zone] Saving...', { editingZone, zoneForm, newId });
+
+      // 10-second timeout wrapper
+      const withTimeout = <T,>(p: Promise<T>): Promise<T> =>
+        Promise.race([
+          p,
+          new Promise<T>((_, rej) => setTimeout(() => rej(new Error('Request timed out after 10s — check Supabase connection')), 10000)),
+        ]);
+
+      if (editingZone) {
+        const { error } = await withTimeout(supabase.from('rate_zones').update(zoneForm).eq('id', editingZone.id));
+        console.log('[Zone] Update result error:', error);
+        if (error) throw error;
+        setZones(prev => prev.map(z => z.id === editingZone.id ? { ...z, ...zoneForm } : z));
+      } else {
+        const { error } = await withTimeout(supabase.from('rate_zones').insert({ id: newId, ...zoneForm }));
+        console.log('[Zone] Insert result error:', error);
+        if (error) throw error;
+        setZones(prev => [...prev, { id: newId, ...zoneForm }]);
+      }
+      setShowZoneModal(false);
+      setEditingZone(null);
+    } catch (err: any) {
+      console.error('[Zone] Caught error:', err);
+      setZoneError(err?.message || 'Save failed. Check the rate_zones table exists in Supabase.');
+    } finally {
+      setSavingZone(false);
     }
-    setShowZoneModal(false); setEditingZone(null); setSavingZone(false);
   };
   const deleteZone = async (id: string) => {
     if (!confirm('Delete this zone? Existing tariffs will keep the zone name as text.')) return;
@@ -123,31 +160,44 @@ export default function RatesPage() {
       ? (r as any).zone_ids
       : zones.filter(z => z.name === r.origin).map(z => z.id);
     setEditingRate(r);
-    setRateForm({ item: r.item, type: r.type, zone_ids: existingIds, rate: rateVal || r.rate, unit: unitVal || 'per barrel', status: r.status });
+    setRateForm({ item: r.item, type: r.type, zone_ids: existingIds, rate: rateVal || r.rate, unit: unitVal || 'per barrel', status: r.status, category: r.category || '' });
     setShowRateModal(true);
   };
+  const [rateError, setRateError] = useState('');
+
   const handleSaveRate = async () => {
     if (!rateForm.item || !rateForm.rate || rateForm.zone_ids.length === 0) return;
     setSavingRate(true);
-    const assignedZones = zones.filter(z => rateForm.zone_ids.includes(z.id));
-    const payload = {
-      item:        rateForm.item,
-      type:        rateForm.type,
-      origin:      assignedZones.map(z => z.name).join(', '),
-      destination: [...new Set(assignedZones.map(z => z.dest_country))].join(', '),
-      rate:        `${rateForm.rate} / ${rateForm.unit}`,
-      status:      rateForm.status,
-      zone_ids:    rateForm.zone_ids,
-    };
-    if (editingRate) {
-      await supabase.from('rates').update(payload).eq('id', editingRate.id);
-      setRates(prev => prev.map(r => r.id === editingRate.id ? { ...r, ...payload } : r));
-    } else {
-      const id = `RT-${Date.now().toString().slice(-5)}`;
-      await supabase.from('rates').insert({ id, ...payload });
-      setRates(prev => [...prev, { id, ...payload }]);
+    setRateError('');
+    try {
+      const assignedZones = zones.filter(z => rateForm.zone_ids.includes(z.id));
+      const payload = {
+        item:        rateForm.item,
+        type:        rateForm.type,
+        origin:      assignedZones.map(z => z.name).join(', '),
+        destination: [...new Set(assignedZones.map(z => z.dest_country))].join(', '),
+        rate:        `${rateForm.rate} / ${rateForm.unit}`,
+        status:      rateForm.status,
+        zone_ids:    rateForm.zone_ids,
+        category:    rateForm.category || null,
+      };
+      if (editingRate) {
+        const { error } = await supabase.from('rates').update(payload).eq('id', editingRate.id);
+        if (error) throw error;
+        setRates(prev => prev.map(r => r.id === editingRate.id ? { ...r, ...payload } : r));
+      } else {
+        const id = `RT-${Date.now().toString().slice(-5)}`;
+        const { error } = await supabase.from('rates').insert({ id, ...payload });
+        if (error) throw error;
+        setRates(prev => [...prev, { id, ...payload }]);
+      }
+      setShowRateModal(false);
+      setEditingRate(null);
+    } catch (err: any) {
+      setRateError(err?.message || 'Save failed. Check the rates table schema.');
+    } finally {
+      setSavingRate(false);
     }
-    setSavingRate(false); setShowRateModal(false); setEditingRate(null);
   };
   const deleteRate = async (id: string) => {
     if (!confirm('Delete this tariff?')) return;
@@ -493,6 +543,12 @@ export default function RatesPage() {
                   </div>
                 </div>
 
+                {zoneError && (
+                  <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3">
+                    <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                    <p className="text-xs font-bold text-red-600">{zoneError}</p>
+                  </div>
+                )}
                 <button onClick={handleSaveZone} disabled={savingZone || !zoneForm.name} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase italic tracking-tight text-sm hover:bg-[var(--brand-orange)] transition-all flex items-center justify-center gap-3 disabled:opacity-50">
                   <Save className="w-4 h-4" /> {savingZone ? 'Saving...' : editingZone ? 'Update Zone' : 'Create Zone'}
                 </button>
@@ -588,6 +644,13 @@ export default function RatesPage() {
                   )}
                 </div>
 
+                <div>
+                  <label className={labelCls}>Item Category <span className="normal-case text-slate-300 font-bold">(visible to customers)</span></label>
+                  <select value={rateForm.category} onChange={e => setRateForm(p => ({ ...p, category: e.target.value }))} className={inputCls}>
+                    {ITEM_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className={labelCls}>Rate Amount *</label>
@@ -607,6 +670,12 @@ export default function RatesPage() {
                   </div>
                 </div>
 
+                {rateError && (
+                  <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3">
+                    <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                    <p className="text-xs font-bold text-red-600">{rateError}</p>
+                  </div>
+                )}
                 <button onClick={handleSaveRate} disabled={savingRate || !rateForm.item || !rateForm.rate || rateForm.zone_ids.length === 0}
                   className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase italic tracking-tight text-sm hover:bg-[var(--brand-orange)] transition-all flex items-center justify-center gap-3 disabled:opacity-50">
                   <Save className="w-4 h-4" /> {savingRate ? 'Saving…' : editingRate ? 'Update Tariff' : 'Add Tariff'}

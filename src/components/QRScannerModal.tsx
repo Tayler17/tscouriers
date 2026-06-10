@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Camera, CameraOff, Search, Scan, Loader2 } from 'lucide-react';
+import jsQR from 'jsqr';
 
 interface Props {
   onClose: () => void;
-  /** Called with the scanned/entered tracking ID */
   onResult: (id: string) => void;
   title?: string;
 }
@@ -15,10 +15,12 @@ export default function QRScannerModal({ onClose, onResult, title = 'Scan Tracki
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [cameraError, setCameraError] = useState('');
   const [scanning, setScanning] = useState(false);
   const [manualId, setManualId] = useState('');
   const [flash, setFlash] = useState(false);
+  const [usingFallback, setUsingFallback] = useState(false);
 
   const stopCamera = useCallback(() => {
     cancelAnimationFrame(rafRef.current);
@@ -27,7 +29,6 @@ export default function QRScannerModal({ onClose, onResult, title = 'Scan Tracki
   }, []);
 
   const handleResult = useCallback((raw: string) => {
-    // Extract TS-XXXX or TS-XXXXX style IDs from a URL or plain string
     const match = raw.match(/TS-\d+/i) || raw.match(/QT-\d+/i);
     const id = match ? match[0].toUpperCase() : raw.trim().toUpperCase();
     setFlash(true);
@@ -37,6 +38,9 @@ export default function QRScannerModal({ onClose, onResult, title = 'Scan Tracki
   }, [onResult, stopCamera]);
 
   useEffect(() => {
+    // Lazy-create an offscreen canvas for jsQR fallback
+    canvasRef.current = document.createElement('canvas');
+
     const startCamera = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -56,28 +60,47 @@ export default function QRScannerModal({ onClose, onResult, title = 'Scan Tracki
 
     const startDetecting = () => {
       const hasBD = 'BarcodeDetector' in window;
-      if (!hasBD) {
-        setCameraError('Live scan not supported in this browser — use manual entry below.');
-        return;
-      }
-      // @ts-ignore — BarcodeDetector is not in TS lib yet
-      const detector = new window.BarcodeDetector({
-        formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'data_matrix'],
-      });
-      const tick = async () => {
-        const v = videoRef.current;
-        if (v && v.readyState >= 2) {
-          try {
-            const results = await detector.detect(v);
-            if (results.length > 0) {
-              handleResult(results[0].rawValue);
-              return; // stop loop after first hit
-            }
-          } catch {}
-        }
+
+      if (hasBD) {
+        // Native BarcodeDetector — Chrome / Android WebView
+        // @ts-ignore
+        const detector = new window.BarcodeDetector({
+          formats: ['qr_code', 'code_128', 'code_39', 'ean_13', 'data_matrix'],
+        });
+        const tick = async () => {
+          const v = videoRef.current;
+          if (v && v.readyState >= 2) {
+            try {
+              const results = await detector.detect(v);
+              if (results.length > 0) { handleResult(results[0].rawValue); return; }
+            } catch {}
+          }
+          rafRef.current = requestAnimationFrame(tick);
+        };
         rafRef.current = requestAnimationFrame(tick);
-      };
-      rafRef.current = requestAnimationFrame(tick);
+      } else {
+        // jsQR canvas fallback — iOS Safari, Firefox, Samsung Internet
+        setUsingFallback(true);
+        const canvas = canvasRef.current!;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (!ctx) { setCameraError('Canvas not available — use manual entry.'); return; }
+
+        const tick = () => {
+          const v = videoRef.current;
+          if (v && v.readyState >= 2 && v.videoWidth > 0) {
+            canvas.width  = v.videoWidth;
+            canvas.height = v.videoHeight;
+            ctx.drawImage(v, 0, 0);
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imgData.data, imgData.width, imgData.height, {
+              inversionAttempts: 'dontInvert',
+            });
+            if (code?.data) { handleResult(code.data); return; }
+          }
+          rafRef.current = requestAnimationFrame(tick);
+        };
+        rafRef.current = requestAnimationFrame(tick);
+      }
     };
 
     startCamera();
@@ -106,7 +129,9 @@ export default function QRScannerModal({ onClose, onResult, title = 'Scan Tracki
             </div>
             <div>
               <h3 className="font-black text-slate-900 text-sm uppercase italic tracking-tight">{title}</h3>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">QR · Barcode · Manual</p>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                {usingFallback ? 'QR · Canvas Mode' : 'QR · Barcode · Manual'}
+              </p>
             </div>
           </div>
           <button
@@ -119,43 +144,28 @@ export default function QRScannerModal({ onClose, onResult, title = 'Scan Tracki
 
         {/* Camera viewport */}
         <div className="relative mx-6 rounded-[2rem] overflow-hidden bg-slate-900" style={{ aspectRatio: '1/1' }}>
-          {/* Flash overlay on scan */}
           <AnimatePresence>
             {flash && (
               <motion.div
-                initial={{ opacity: 0.8 }}
-                animate={{ opacity: 0 }}
-                exit={{ opacity: 0 }}
+                initial={{ opacity: 0.8 }} animate={{ opacity: 0 }} exit={{ opacity: 0 }}
                 transition={{ duration: 0.35 }}
                 className="absolute inset-0 bg-emerald-400 z-20 rounded-[2rem]"
               />
             )}
           </AnimatePresence>
 
-          <video
-            ref={videoRef}
-            muted
-            playsInline
-            className="w-full h-full object-cover"
-          />
+          <video ref={videoRef} muted playsInline className="w-full h-full object-cover" />
 
-          {/* Scanning aimer overlay */}
+          {/* Scanning overlay */}
           {scanning && !cameraError && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="relative w-48 h-48">
-                {/* Corner brackets */}
-                {[
-                  'top-0 left-0 border-t-4 border-l-4',
-                  'top-0 right-0 border-t-4 border-r-4',
-                  'bottom-0 left-0 border-b-4 border-l-4',
-                  'bottom-0 right-0 border-b-4 border-r-4',
-                ].map((cls, i) => (
+                {['top-0 left-0 border-t-4 border-l-4', 'top-0 right-0 border-t-4 border-r-4',
+                  'bottom-0 left-0 border-b-4 border-l-4', 'bottom-0 right-0 border-b-4 border-r-4'].map((cls, i) => (
                   <div key={i} className={`absolute w-8 h-8 border-[var(--brand-orange)] rounded-sm ${cls}`} />
                 ))}
-                {/* Scan line animation */}
                 <motion.div
-                  initial={{ top: '10%' }}
-                  animate={{ top: '90%' }}
+                  initial={{ top: '10%' }} animate={{ top: '90%' }}
                   transition={{ duration: 1.8, repeat: Infinity, repeatType: 'reverse', ease: 'linear' }}
                   className="absolute left-0 right-0 h-0.5 bg-[var(--brand-orange)] opacity-80"
                 />
@@ -163,7 +173,6 @@ export default function QRScannerModal({ onClose, onResult, title = 'Scan Tracki
             </div>
           )}
 
-          {/* No camera state */}
           {!scanning && !cameraError && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
               <Loader2 className="w-8 h-8 text-white animate-spin" />
@@ -201,7 +210,9 @@ export default function QRScannerModal({ onClose, onResult, title = 'Scan Tracki
             </button>
           </div>
           <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest text-center">
-            Point camera at a QR code or barcode on the shipping label
+            {usingFallback
+              ? 'Point camera at a QR code · 1D barcodes: use manual entry'
+              : 'Point camera at a QR code or barcode on the shipping label'}
           </p>
         </div>
       </motion.div>

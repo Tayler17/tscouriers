@@ -124,13 +124,9 @@ export default function AdminUsersPage() {
     if (error) { showMsg('error', error.message); setCreating(false); return; }
     if (!data.user) { showMsg('error', 'Could not create auth user.'); setCreating(false); return; }
 
-    if (adminSession) {
-      await supabase.auth.setSession({
-        access_token: adminSession.access_token,
-        refresh_token: adminSession.refresh_token,
-      });
-    }
-
+    // Create profile WHILE still logged in as new user (before restoring admin session)
+    // This is critical: our RLS policy requires auth.uid() = id, so we must upsert
+    // while the Supabase client still has the new user's session active.
     const perms =
       formData.role === 'ADMIN'    ? ADMIN_PERMS :
       formData.role === 'CUSTOMER' ? CUSTOMER_PERMS :
@@ -143,6 +139,15 @@ export default function AdminUsersPage() {
     };
 
     const { error: profileError } = await supabase.from('profiles').upsert(profile);
+
+    // NOW restore admin session
+    if (adminSession) {
+      await supabase.auth.setSession({
+        access_token: adminSession.access_token,
+        refresh_token: adminSession.refresh_token,
+      });
+    }
+
     setCreating(false);
     if (profileError) { showMsg('error', `Profile error: ${profileError.message}`); return; }
 

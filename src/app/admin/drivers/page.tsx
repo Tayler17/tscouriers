@@ -25,9 +25,7 @@ interface Driver {
 interface ShipmentRow {
   id: string;
   customer: string;
-  receiver_name: string;
   destination: string;
-  delivery_address: string;
   status: string;
   metadata: Record<string, any> | null;
 }
@@ -70,9 +68,57 @@ export default function DriversPage() {
 
   const fetchDrivers = async () => {
     setLoading(true);
-    const { data } = await supabase.from('drivers').select('*').order('id');
-    if (data) setDrivers(data);
+
+    // Load manually created drivers from the drivers table
+    const { data: driverRows } = await supabase.from('drivers').select('*').order('name');
+    const fromTable: Driver[] = (driverRows || []) as Driver[];
+
+    // Load auth DRIVER users from profiles (created via User Management)
+    const { data: profileRows } = await supabase.from('profiles').select('id, name, email').eq('role', 'DRIVER');
+    const tableEmails = new Set(fromTable.map(d => d.email).filter(Boolean));
+
+    // Compute real shipment counts from metadata for all drivers
+    const { data: shipmentMeta } = await supabase.from('shipments').select('metadata');
+    const counts: Record<string, number> = {};
+    (shipmentMeta || []).forEach(s => {
+      const p = s.metadata?.pickup_driver_id;
+      const d = s.metadata?.delivery_driver_id;
+      if (p) counts[p] = (counts[p] || 0) + 1;
+      if (d && d !== p) counts[d] = (counts[d] || 0) + 1;
+    });
+
+    const fromProfiles: Driver[] = (profileRows || [])
+      .filter(p => !tableEmails.has(p.email)) // don't duplicate by email
+      .map(p => ({
+        id: p.id,
+        name: p.name || p.email || 'Driver',
+        phone: '', email: p.email || '',
+        vehicle: '', plate: '', zone: '—',
+        status: 'Available',
+        shipments_count: counts[p.id] || 0,  // real count from metadata
+        joined_at: new Date().toISOString().split('T')[0],
+      }));
+
+    // Also update counts for table drivers using metadata (more accurate than stored count)
+    const mergedTable = fromTable.map(d => ({
+      ...d,
+      shipments_count: counts[d.id] || d.shipments_count || 0,
+    }));
+
+    setDrivers([...mergedTable, ...fromProfiles]);
     setLoading(false);
+  };
+
+  // Returns true if driver was created via User Management (auth UUID, not DRV-xxx)
+  const isAuthDriver = (id: string) =>
+    id.length === 36 && id.split('-').length === 5;
+
+  // Resolves the auth UUID for any driver (DRV-xxx or UUID)
+  const resolveAuthId = async (driver: Driver): Promise<string | null> => {
+    if (isAuthDriver(driver.id)) return driver.id;
+    if (!driver.email) return null;
+    const { data } = await supabase.from('profiles').select('id').eq('email', driver.email).single();
+    return data?.id ?? null;
   };
 
   const openDriver = async (driver: Driver) => {
@@ -81,11 +127,23 @@ export default function DriversPage() {
     setEditing(false);
     setShipmentTab('all');
     setLoadingShipments(true);
-    const { data } = await supabase.from('shipments').select('id, customer, receiver_name, destination, delivery_address, status, metadata');
+
+    const authId = await resolveAuthId(driver);
+
+    const { data } = await supabase.from('shipments').select('id, customer, destination, status, metadata');
     if (data) {
       const rows = data as ShipmentRow[];
       setAllShipments(rows);
-      setDriverShipments(rows.filter(s => s.metadata?.pickup_driver_id === driver.id || s.metadata?.delivery_driver_id === driver.id));
+      // Match by driver table ID OR auth UUID (handles both assignment methods)
+      const matched = rows.filter(s => {
+        const p = s.metadata?.pickup_driver_id;
+        const d = s.metadata?.delivery_driver_id;
+        return p === driver.id || d === driver.id ||
+               (authId && (p === authId || d === authId));
+      });
+      setDriverShipments(matched);
+      // Update the card count to reflect the real number
+      setDrivers(prev => prev.map(d => d.id === driver.id ? { ...d, shipments_count: matched.length } : d));
     }
     setLoadingShipments(false);
   };
@@ -93,7 +151,9 @@ export default function DriversPage() {
   const saveDriverEdit = async () => {
     if (!selected) return;
     setSaving(true);
-    await supabase.from('drivers').update(editForm).eq('id', selected.id);
+    if (!isAuthDriver(selected.id)) {
+      await supabase.from('drivers').update(editForm).eq('id', selected.id);
+    }
     setDrivers(prev => prev.map(d => d.id === selected.id ? { ...d, ...editForm } : d));
     setSelected({ ...selected, ...editForm });
     setEditing(false);
@@ -101,7 +161,9 @@ export default function DriversPage() {
   };
 
   const updateStatus = async (driverId: string, status: string) => {
-    await supabase.from('drivers').update({ status }).eq('id', driverId);
+    if (!isAuthDriver(driverId)) {
+      await supabase.from('drivers').update({ status }).eq('id', driverId);
+    }
     setDrivers(prev => prev.map(d => d.id === driverId ? { ...d, status } : d));
     if (selected?.id === driverId) setSelected(prev => prev ? { ...prev, status } : prev);
   };
@@ -127,9 +189,20 @@ export default function DriversPage() {
 
   const assignShipment = async (shipment: ShipmentRow) => {
     if (!selected) return;
-    const field = assignType === 'pickup' ? 'pickup_driver_id' : 'delivery_driver_id';
-    const newMeta = { ...(shipment.metadata || {}), [field]: selected.id };
-    await supabase.from('shipments').update({ metadata: newMeta }).eq('id', shipment.id);
+    setSaving(true);
+
+    // Always save the auth UUID so driver portal can find the shipment
+    const authId = await resolveAuthId(selected);
+    const assignId = authId || selected.id;
+
+    const field      = assignType === 'pickup'   ? 'pickup_driver_id'   : 'delivery_driver_id';
+    const nameField  = assignType === 'pickup'   ? 'pickup_driver_name' : 'delivery_driver_name';
+    const newMeta = { ...(shipment.metadata || {}), [field]: assignId, [nameField]: selected.name };
+
+    const { error } = await supabase.from('shipments').update({ metadata: newMeta }).eq('id', shipment.id);
+    setSaving(false);
+    if (error) { alert('Could not save assignment: ' + error.message); return; }
+
     const updated = { ...shipment, metadata: newMeta };
     setAllShipments(prev => prev.map(s => s.id === shipment.id ? updated : s));
     setDriverShipments(prev => {
@@ -165,21 +238,28 @@ export default function DriversPage() {
     d.zone.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const pickupCount   = driverShipments.filter(s => s.metadata?.pickup_driver_id === selected?.id).length;
-  const deliveryCount = driverShipments.filter(s => s.metadata?.delivery_driver_id === selected?.id).length;
+  const matchesDriver = (val: string | undefined) =>
+    !!selected && (val === selected.id);
+
+  const pickupCount   = driverShipments.filter(s => matchesDriver(s.metadata?.pickup_driver_id)).length;
+  const deliveryCount = driverShipments.filter(s => matchesDriver(s.metadata?.delivery_driver_id)).length;
 
   const displayedShipments = driverShipments.filter(s => {
-    if (shipmentTab === 'pickup')   return s.metadata?.pickup_driver_id === selected?.id;
-    if (shipmentTab === 'delivery') return s.metadata?.delivery_driver_id === selected?.id;
-    return true;
+    if (shipmentTab === 'pickup')   return matchesDriver(s.metadata?.pickup_driver_id);
+    if (shipmentTab === 'delivery') return matchesDriver(s.metadata?.delivery_driver_id);
+    return true; // 'all' tab shows everything
   });
 
   const assignableShipments = allShipments.filter(s => {
     const field = assignType === 'pickup' ? 'pickup_driver_id' : 'delivery_driver_id';
-    if (s.metadata?.[field]) return false;
+    if (s.metadata?.[field]) return false; // already has a driver for this type
+    if (!assignSearch) return true;
     const q = assignSearch.toLowerCase();
-    return !q || s.customer?.toLowerCase().includes(q) || s.id.toLowerCase().includes(q) || s.destination?.toLowerCase().includes(q);
-  }).slice(0, 12);
+    return s.customer?.toLowerCase().includes(q) ||
+           s.id.toLowerCase().includes(q) ||
+           s.destination?.toLowerCase().includes(q) ||
+           (s.metadata?.delivery_address || '').toLowerCase().includes(q);
+  }).slice(0, 20);
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -301,6 +381,9 @@ export default function DriversPage() {
                     <h2 className="text-2xl font-black text-slate-900 italic uppercase tracking-tighter">{selected.name}</h2>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{selected.id} · {selected.zone}</p>
                     <div className="flex items-center gap-3 mt-2.5">
+                      {isAuthDriver(selected.id) && (
+                        <span className="px-3 py-1.5 bg-purple-50 text-purple-600 border border-purple-200 rounded-xl text-[9px] font-black uppercase tracking-widest">Auth User</span>
+                      )}
                       <select
                         value={selected.status}
                         onChange={e => updateStatus(selected.id, e.target.value)}
@@ -393,12 +476,18 @@ export default function DriversPage() {
                     </div>
                   )}
 
-                  <button
-                    onClick={() => handleDelete(selected.id)}
-                    className="w-full flex items-center justify-center gap-2 py-3 bg-red-50 text-red-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all mt-6"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> Remove Driver
-                  </button>
+                  {isAuthDriver(selected.id) ? (
+                    <p className="text-[9px] font-bold text-slate-400 text-center mt-6 px-2">
+                      Auth user — manage from <strong>User Management</strong> page
+                    </p>
+                  ) : (
+                    <button
+                      onClick={() => handleDelete(selected.id)}
+                      className="w-full flex items-center justify-center gap-2 py-3 bg-red-50 text-red-400 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all mt-6"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" /> Remove Driver
+                    </button>
+                  )}
                 </div>
 
                 {/* Right — Route & shipments */}
@@ -423,6 +512,34 @@ export default function DriversPage() {
                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Total Done</p>
                     </div>
                   </div>
+
+                  {/* Route map — shows all assigned stop addresses */}
+                  {driverShipments.length > 0 && (() => {
+                    const stops = driverShipments.map(s => s.metadata?.delivery_address || s.destination).filter(Boolean);
+                    const WAREHOUSE = '67-69 Nathan Way London SE28 0BQ';
+                    const routeUrl = `https://www.google.com/maps/dir/${encodeURIComponent(WAREHOUSE)}/${stops.map(s => encodeURIComponent(s)).join('/')}/${encodeURIComponent(WAREHOUSE)}`;
+                    const firstStop = stops[0] || WAREHOUSE;
+                    return (
+                      <div className="mb-4 rounded-[1.5rem] overflow-hidden border border-slate-100 bg-slate-50">
+                        <div style={{ height: 180 }}>
+                          <iframe
+                            src={`https://maps.google.com/maps?q=${encodeURIComponent(firstStop)}&output=embed&z=13`}
+                            width="100%" height="100%" style={{ border: 0 }} loading="lazy" title="Driver route"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between px-4 py-3">
+                          <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{stops.length} stop{stops.length !== 1 ? 's' : ''} assigned</p>
+                            <p className="text-[10px] font-bold text-slate-700 truncate max-w-[200px]">{firstStop}</p>
+                          </div>
+                          <a href={routeUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-4 py-2 bg-blue-500 text-white rounded-xl text-[9px] font-black uppercase hover:bg-blue-600 transition-all">
+                            <Navigation className="w-3 h-3" /> Full Route
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Tabs + Assign button */}
                   <div className="flex items-center justify-between mb-4">
@@ -470,7 +587,7 @@ export default function DriversPage() {
                               </span>
                               <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${s.status === 'Delivered' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>{s.status}</span>
                             </div>
-                            <p className="text-[10px] font-bold text-slate-400 truncate mt-0.5">{s.delivery_address || s.destination}</p>
+                            <p className="text-[10px] font-bold text-slate-400 truncate mt-0.5">{s.metadata?.delivery_address || s.destination}</p>
                             <p className="text-[9px] font-black text-slate-300 uppercase mt-0.5">{s.id}</p>
                           </div>
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -539,7 +656,7 @@ export default function DriversPage() {
                     </div>
                     <div className="flex-grow min-w-0">
                       <p className="text-xs font-black text-slate-900 uppercase tracking-tighter">{s.customer}</p>
-                      <p className="text-[10px] font-bold text-slate-400 truncate">{s.delivery_address || s.destination}</p>
+                      <p className="text-[10px] font-bold text-slate-400 truncate">{s.metadata?.delivery_address || s.destination}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1 flex-shrink-0">
                       <span className="text-[9px] font-black text-slate-400 uppercase">{s.id}</span>

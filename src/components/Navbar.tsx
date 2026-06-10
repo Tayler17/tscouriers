@@ -161,11 +161,14 @@ export default function Navbar() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -12, scale: 0.97 }}
               transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="fixed top-[76px] left-3 right-3 z-50 lg:hidden bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden"
-              style={{ maxHeight: 'calc(100vh - 96px)' }}
+              className="fixed left-3 right-3 z-50 lg:hidden bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden"
+              style={{
+                top: isHome && !scrolled ? '88px' : '68px',
+                maxHeight: `calc(100vh - ${isHome && !scrolled ? '100px' : '80px'})`,
+              }}
             >
               {/* Scrollable content */}
-              <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 96px)' }}>
+              <div className="overflow-y-auto" style={{ maxHeight: `calc(100vh - ${isHome && !scrolled ? '100px' : '80px'})` }}>
 
                 {user ? (
                   /* ── LOGGED-IN MOBILE MENU ── */

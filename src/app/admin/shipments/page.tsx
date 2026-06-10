@@ -382,10 +382,21 @@ export default function ShipmentsPage() {
     setSaving(false);
   };
 
+  const makeRefId = (prefix: string, defaultPrefix: string) => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('ts_ops_settings') || '{}');
+      const p = (saved[prefix] || defaultPrefix).toUpperCase();
+      const d = parseInt(saved.idDigits || '4');
+      return `${p}-${Date.now().toString().slice(-d)}`;
+    } catch {
+      return `${defaultPrefix}-${Date.now().toString().slice(-4)}`;
+    }
+  };
+
   const handleSaveAdd = async () => {
     if (!addForm.customer) return;
     setSaving(true);
-    const id = `TS-${Date.now().toString().slice(-4)}`;
+    const id = makeRefId('shipmentPrefix', 'TS');
     await addShipment({ id, ...formToShipment(addForm) } as Shipment);
     setAddForm(EMPTY);
     setShowAdd(false);
@@ -395,7 +406,7 @@ export default function ShipmentsPage() {
   const handleConsolidate = async () => {
     if (!contForm.vessel) return;
     setSaving(true);
-    const id = `CONT-${Date.now().toString().slice(-4)}`;
+    const id = makeRefId('containerPrefix', 'CONT');
     await addContainer({ id, vessel: contForm.vessel, flight: '-', destination: contForm.destination, status: 'Loading', count: selected.length, date: contForm.date, type: contForm.type });
     await Promise.all(selected.map(async s => {
       const sh = shipments.find(sh => sh.id === s.id);
@@ -441,12 +452,23 @@ export default function ShipmentsPage() {
     setShowAssignDriver(true);
     setActiveActionId(null);
     setLoadingDrivers(true);
+    // Load from profiles WHERE role='DRIVER' — these are auth users created via User Management.
+    // Their id is already the auth UUID, so driver portal filter works without any extra lookup.
     const { data } = await supabase
-      .from('drivers')
-      .select('id, name, phone, vehicle, zone, status, email')
-      .neq('status', 'Off Duty')
+      .from('profiles')
+      .select('id, name, email')
+      .eq('role', 'DRIVER')
       .order('name');
-    setDrivers((data || []) as DriverProfile[]);
+    const profileDrivers: DriverProfile[] = (data || []).map(p => ({
+      id: p.id,
+      name: p.name || p.email || p.id,
+      phone: '',
+      vehicle: '',
+      zone: '',
+      status: 'Active',
+      email: p.email,
+    }));
+    setDrivers(profileDrivers);
     setLoadingDrivers(false);
   };
 
@@ -456,31 +478,21 @@ export default function ShipmentsPage() {
     const shipment = shipments.find(s => s.id === assignShipmentId);
     const driver = drivers.find(d => d.id === selectedDriverId);
 
-    // Resolve the driver's auth profile UUID so the driver portal filter
-    // (s.metadata?.pickup_driver_id === user.id) matches correctly.
-    // user.id is a Supabase auth UUID; selectedDriverId is the drivers table TEXT id.
-    let profileId: string | null = null;
-    if (driver?.email) {
-      const { data: profile } = await supabase.from('profiles').select('id').eq('email', driver.email).single();
-      if (profile) profileId = profile.id;
-    }
-    // Use UUID if available (so driver portal filter works), otherwise fall back
-    const driverId = profileId || selectedDriverId;
+    // selectedDriverId is already the auth UUID (loaded from profiles)
+    const driverId = selectedDriverId;
 
     const meta = { ...(shipment?.metadata || {}) };
     if (assignType === 'pickup' || assignType === 'both') { meta.pickup_driver_id = driverId; meta.pickup_driver_name = driver?.name || ''; }
     if (assignType === 'delivery' || assignType === 'both') { meta.delivery_driver_id = driverId; meta.delivery_driver_name = driver?.name || ''; }
     await updateShipment(assignShipmentId, { metadata: meta });
 
-    // Notify driver (only possible if they have an auth profile)
-    if (profileId) {
-      const typeLabel = assignType === 'both' ? 'Pickup & Delivery' : assignType === 'pickup' ? 'Pickup' : 'Delivery';
-      await supabase.from('notifications').insert({
-        user_id: profileId, type: 'assignment', title: `${typeLabel} Assigned`,
-        message: `Shipment ${assignShipmentId} — ${shipment?.customer || ''} → ${shipment?.destination || ''} has been added to your route.`,
-        data: { shipment_id: assignShipmentId, assign_type: assignType },
-      });
-    }
+    const typeLabel = assignType === 'both' ? 'Pickup & Delivery' : assignType === 'pickup' ? 'Pickup' : 'Delivery';
+    await supabase.from('notifications').insert({
+      user_id: driverId, type: 'assignment', title: `${typeLabel} Assigned`,
+      message: `Shipment ${assignShipmentId} — ${shipment?.customer || ''} → ${shipment?.destination || ''} has been added to your route.`,
+      data: { shipment_id: assignShipmentId, assign_type: assignType },
+    });
+
     setShowAssignDriver(false);
     setAssignShipmentId(null);
     setSaving(false);

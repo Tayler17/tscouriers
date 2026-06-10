@@ -5,12 +5,13 @@ import AdminSidebar from '@/components/AdminSidebar';
 import {
   Bell, Globe, CreditCard, ShieldCheck,
   CheckCircle2, ChevronRight, Zap, Building2, AlertCircle, Save,
-  Key, Lock, Server, Mail, ToggleLeft, ToggleRight
+  Key, Lock, Server, Mail, ToggleLeft, ToggleRight, Hash
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 const SECTIONS = [
   { id: 'profile',       label: 'Company Profile',        icon: Building2 },
+  { id: 'operations',    label: 'Operations',             icon: Hash },
   { id: 'notifications', label: 'Notifications',           icon: Bell },
   { id: 'security',      label: 'Security & Access',       icon: ShieldCheck },
   { id: 'billing',       label: 'Subscription & Billing',  icon: CreditCard },
@@ -41,6 +42,13 @@ const NOTIF_DEFAULTS = {
   new_user:       false,
 };
 
+interface OpsSettings {
+  shipmentPrefix: string;
+  idDigits: string;
+  containerPrefix: string;
+}
+const OPS_DEFAULTS: OpsSettings = { shipmentPrefix: 'TS', idDigits: '4', containerPrefix: 'CONT' };
+
 export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState('profile');
   const [settings, setSettings]   = useState<CompanySettings>(DEFAULTS);
@@ -48,6 +56,7 @@ export default function SettingsPage() {
   const [saving, setSaving]        = useState(false);
   const [message, setMessage]      = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [notifs, setNotifs]        = useState(NOTIF_DEFAULTS);
+  const [ops, setOps]              = useState<OpsSettings>(OPS_DEFAULTS);
 
   useEffect(() => {
     supabase.from('company_settings').select('*').eq('id', 'main').single().then(({ data }) => {
@@ -56,6 +65,8 @@ export default function SettingsPage() {
     });
     const saved = localStorage.getItem('ts_notif_prefs');
     if (saved) setNotifs(JSON.parse(saved));
+    const savedOps = localStorage.getItem('ts_ops_settings');
+    if (savedOps) setOps({ ...OPS_DEFAULTS, ...JSON.parse(savedOps) });
   }, []);
 
   const handleSave = async () => {
@@ -64,6 +75,16 @@ export default function SettingsPage() {
       const { error } = await supabase.from('company_settings').upsert(settings);
       setSaving(false);
       setMessage(error ? { type: 'error', text: error.message } : { type: 'success', text: 'Company profile saved.' });
+    } else if (activeSection === 'operations') {
+      const clean: OpsSettings = {
+        shipmentPrefix: (ops.shipmentPrefix || 'TS').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) || 'TS',
+        idDigits: ['4','5','6'].includes(ops.idDigits) ? ops.idDigits : '4',
+        containerPrefix: (ops.containerPrefix || 'CONT').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) || 'CONT',
+      };
+      localStorage.setItem('ts_ops_settings', JSON.stringify(clean));
+      setOps(clean);
+      setSaving(false);
+      setMessage({ type: 'success', text: 'Reference format saved.' });
     } else if (activeSection === 'notifications') {
       localStorage.setItem('ts_notif_prefs', JSON.stringify(notifs));
       setSaving(false);
@@ -201,6 +222,75 @@ export default function SettingsPage() {
                   <button onClick={() => setActiveSection('security')} className="px-8 py-3 bg-white text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-transform">Configure</button>
                 </div>
               </>
+            )}
+
+            {/* ── OPERATIONS ── */}
+            {activeSection === 'operations' && (
+              <div className="bg-white p-12 rounded-[3.5rem] border border-slate-100 shadow-sm space-y-10">
+                <div className="border-b border-slate-50 pb-8">
+                  <h3 className="text-xl font-black italic uppercase text-slate-900">Reference <span className="text-[var(--brand-orange)]">Format</span></h3>
+                  <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Customise how new shipment and container IDs are generated.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Shipment Prefix</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="text" maxLength={6}
+                        value={ops.shipmentPrefix}
+                        onChange={e => setOps(p => ({ ...p, shipmentPrefix: e.target.value.toUpperCase() }))}
+                        placeholder="TS"
+                        className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-black text-sm focus:bg-white transition-all tracking-widest uppercase"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-bold px-2">e.g. "TS" → <span className="font-black text-slate-600">TS-0001</span></p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">ID Length (digits)</label>
+                    <select
+                      value={ops.idDigits}
+                      onChange={e => setOps(p => ({ ...p, idDigits: e.target.value }))}
+                      className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-bold text-sm focus:bg-white transition-all appearance-none"
+                    >
+                      <option value="4">4 digits — TS-0001</option>
+                      <option value="5">5 digits — TS-00001</option>
+                      <option value="6">6 digits — TS-000001</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Container Prefix</label>
+                    <input
+                      type="text" maxLength={6}
+                      value={ops.containerPrefix}
+                      onChange={e => setOps(p => ({ ...p, containerPrefix: e.target.value.toUpperCase() }))}
+                      placeholder="CONT"
+                      className="w-full px-6 py-4 rounded-2xl bg-slate-50 border border-slate-100 outline-none font-black text-sm focus:bg-white transition-all tracking-widest uppercase"
+                    />
+                    <p className="text-[10px] text-slate-400 font-bold px-2">e.g. "CONT" → <span className="font-black text-slate-600">CONT-0001</span></p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Preview</label>
+                    <div className="px-6 py-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+                      <p className="font-mono text-emerald-400 text-sm font-black">
+                        {(ops.shipmentPrefix || 'TS').toUpperCase()}-{'X'.repeat(parseInt(ops.idDigits || '4'))}
+                      </p>
+                      <p className="font-mono text-blue-400 text-sm font-black">
+                        {(ops.containerPrefix || 'CONT').toUpperCase()}-{'X'.repeat(parseInt(ops.idDigits || '4'))}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-4 border-t border-slate-50">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                    ⚠ This only affects new IDs going forward — existing shipments keep their current reference.
+                  </p>
+                </div>
+              </div>
             )}
 
             {/* ── NOTIFICATIONS ── */}
